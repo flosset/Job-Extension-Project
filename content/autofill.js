@@ -86,6 +86,15 @@
     return pickElement(candidates, used, (el) => el.tagName === "SELECT");
   }
 
+  /** Pick the best <select> for arbitrary keywords (answer-bank entries). */
+  function pickSelectByKeywords(keywords, pool, used) {
+    return pickElement(
+      keywordMatches(pool, keywords, "SELECT"),
+      used,
+      (el) => el.tagName === "SELECT"
+    );
+  }
+
   /**
    * Find the <option> whose text/value best matches the stored value.
    * (Moved to dom-utils as JA.findOptionForValue so repeatable sections share
@@ -122,15 +131,33 @@
         used,
         (node) => node.tagName !== "SELECT" && !JA.isComboboxInput(node)
       );
-      if (!el) continue;
-
-      try {
-        JA.assignValue(el, value);
-      } catch (err) {
+      if (el) {
+        try {
+          JA.assignValue(el, value);
+        } catch (err) {
+          continue;
+        }
+        used.add(el);
+        count++;
         continue;
       }
-      used.add(el);
-      count++;
+
+      // The same answer-bank entry may be a native <select> on the next
+      // portal ("How did you hear about us"). The option matcher is
+      // synonym- and polarity-aware, so it only commits on a real match.
+      const select = pickSelectByKeywords(keywords, pool, used);
+      if (select) {
+        const option = JA.findOptionForValue(select, value);
+        if (option) {
+          try {
+            JA.selectOption(select, option);
+          } catch (err) {
+            continue;
+          }
+          used.add(select);
+          count++;
+        }
+      }
     }
     return count;
   }
@@ -205,6 +232,12 @@
     // Yes/No radio pairs (work authorization, sponsorship) — feature 2.
     if (JA.fillRadios) {
       filled += JA.fillRadios(profile, used);
+    }
+
+    // Answer-bank entries rendered as radio questions (review item #4):
+    // "willing to relocate?", "how did you hear about us?".
+    if (JA.fillSnippetRadios) {
+      filled += JA.fillSnippetRadios(profile, used);
     }
 
     // User-defined fuzzy key/value snippets — feature 4.

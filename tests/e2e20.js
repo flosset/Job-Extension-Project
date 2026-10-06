@@ -165,6 +165,40 @@ function val(window, id) {
   check("#5 last name still its own field", val(allThree.window, "ln"), "Doe");
   check("#5 full name filled alongside them", val(allThree.window, "nm"), "Jane Doe");
 
+  // --- #4 answer bank drives native <select> and radio groups --------------
+  const reactiveHtml =
+    "<!doctype html><html><body>" +
+    "<fieldset><legend>Are you willing to relocate?</legend>" +
+    '<label><input type="radio" name="relocate" value="Yes" /> Yes</label>' +
+    '<label><input type="radio" name="relocate" value="No" /> No</label>' +
+    "</fieldset>" +
+    "<fieldset><legend>Do you require sponsorship?</legend>" +
+    '<label><input type="radio" name="sponsor" value="No" /> No</label>' +
+    "</fieldset>" +
+    '<label for="hear">How did you hear about us?</label>' +
+    '<select id="hear" name="hear">' +
+    '<option value="">Select...</option>' +
+    '<option value="li">LinkedIn</option>' +
+    '<option value="ref">Referral</option>' +
+    "</select></body></html>";
+  const reactive = await load(reactiveHtml, {
+    customSnippets: [
+      { key: "willing to relocate", value: "Yes" },
+      { key: "how did you hear about us", value: "LinkedIn" },
+      { key: "require sponsorship", value: "Yes" }
+    ]
+  });
+  const rw = reactive.window;
+  const radios = (v) =>
+    Array.from(rw.document.querySelectorAll('input[type="radio"][value="' + v + '"]'));
+  const relocateYes = radios("Yes").filter((r) => r.name === "relocate")[0];
+  const relocateNo = radios("No").filter((r) => r.name === "relocate")[0];
+  const sponsorNo = radios("No").filter((r) => r.name === "sponsor")[0];
+  check("#4 radio Yes selected from answer bank", relocateYes.checked, true);
+  check("#4 radio No not selected", relocateNo.checked, false);
+  check("#4 native select chosen from answer bank", val(rw, "hear"), "li");
+  check("#4 opposite-only radio group left UNSELECTED", sponsorNo.checked, false);
+
   console.log("");
   const verdict = fail === 0 ? "PASS" : "FAIL";
   console.log(`SNIPPET+SELECTOR+FULLNAME E2E ${verdict} (${pass} passed, ${fail} failed)`);

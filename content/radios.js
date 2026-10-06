@@ -81,4 +81,59 @@
     }
     return count;
   };
+  /** The radio group whose question text matches arbitrary answer-bank keywords. */
+  JA.radioGroupForKeywords = function (keywords, used) {
+    for (const group of JA.radioGroups()) {
+      if (group.some((r) => used.has(r) || r.disabled || r.checked)) continue;
+      const signal = JA.normalize(JA.radioGroupSignal(group));
+      if (JA.matchesKeywords(signal, keywords)) return group;
+    }
+    return null;
+  };
+
+  /**
+   * Answer-bank entries rendered as radio questions — "Are you willing to
+   * relocate?", "How did you hear about us?". Yes/No answers go through the
+   * negation-safe picker; anything else must match a radio's own label EXACTLY
+   * (no fuzzy guessing, so a wrong answer can't be produced).
+   */
+  JA.fillSnippetRadios = function (profile, used) {
+    used = used || new Set();
+    const snippets = Array.isArray(profile.customSnippets)
+      ? profile.customSnippets
+      : [];
+    let count = 0;
+
+    for (const snippet of snippets) {
+      const key = snippet && snippet.key;
+      const value = snippet && snippet.value;
+      if (!key || !value || typeof value !== "string") continue;
+
+      const keywords = JA.snippetKeywords(key);
+      if (!keywords.length) continue;
+
+      const group = JA.radioGroupForKeywords(keywords, used);
+      if (!group) continue;
+
+      let radio = JA.radioOptionFor(group, value);
+      if (!radio && !JA.answerPolarity(value)) {
+        const target = JA.normalize(value);
+        radio =
+          group.find((r) => {
+            const label = JA.normalize(JA.getSignal(r));
+            return label === target || JA.normalize(r.value) === target;
+          }) || null;
+      }
+      if (!radio) continue;
+
+      try {
+        JA.selectRadio(radio);
+      } catch (err) {
+        continue;
+      }
+      group.forEach((r) => used.add(r));
+      count++;
+    }
+    return count;
+  };
 })();
