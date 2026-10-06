@@ -8,7 +8,7 @@ const path = require("path");
 const { JSDOM } = require("jsdom");
 
 const APP_DIR = "g:\\Programming\\Job Extension Project";
-const POPUP_JS = fs.readFileSync(path.join(APP_DIR, "popup.js"), "utf8");
+const { POPUP_JS } = require("./_popup-source");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let pass = 0;

@@ -19,7 +19,7 @@ const SRC = [
 ]
   .map((f) => fs.readFileSync(path.join(APP_DIR, f), "utf8"))
   .join("\n");
-const POPUP_JS = fs.readFileSync(path.join(APP_DIR, "popup.js"), "utf8");
+const { POPUP_JS } = require("./_popup-source");
 
 const FIXTURE = `<!doctype html><html><body>
   <label for="firstName">First Name</label><input id="firstName" type="text" />

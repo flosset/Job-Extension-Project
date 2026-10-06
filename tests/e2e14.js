@@ -8,7 +8,7 @@ const path = require("path");
 const { JSDOM } = require("jsdom");
 
 const APP_DIR = "g:\\Programming\\Job Extension Project";
-const SRC = fs.readFileSync(path.join(APP_DIR, "popup.js"), "utf8");
+const { POPUP_JS: SRC } = require("./_popup-source");
 
 const dom = new JSDOM(
   `<!doctype html><html><body>

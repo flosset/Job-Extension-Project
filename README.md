@@ -80,11 +80,23 @@ content/files.js       resume auto-attach
 content/autofill.js    orchestrator: reads the profile, fills, reports
 ```
 
-`popup.js` is shared by `popup.html` and `options.html`; every element lookup is
-null-safe, so a page only needs the controls it actually uses.
+`popup.html` and `options.html` are the two screens; both load the same four UI
+scripts, in this order (top-level bindings in classic scripts are visible to
+later ones, so order matters):
 
-Injected files cannot `import`, so `popup.js` lists them in `CONTENT_SCRIPTS`
-and Chrome evaluates them in that order.
+```
+ui/core.js         shared constants + the null-safe DOM helpers
+ui/storage.js      profile load/save, repeatable cards, resume, export/import
+ui/fill-runner.js  injection into every frame, result aggregation, status
+ui/editor.js       bootstrap: wires whichever controls this page owns
+```
+
+Every element lookup is null-safe, so a page only needs the controls it uses —
+the compact popup and the full editor share all of this code.
+
+Injected files cannot `import`, so `ui/core.js` lists them in
+`CONTENT_SCRIPTS` and `ui/fill-runner.js` hands that list to
+`chrome.scripting.executeScript`, which evaluates them in order.
 
 ### Adding label synonyms
 
