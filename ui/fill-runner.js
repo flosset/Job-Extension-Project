@@ -189,6 +189,11 @@ const aggregate = {
       const status = $("status");
       if (status) status.textContent += " " + notes.join(" ");
     }
+
+    // Remember this run for its tab. The popup document is destroyed the moment
+    // it closes — and the user closes it precisely to go and fill these fields
+    // by hand — so without this the list would vanish exactly when it is useful.
+    saveRun(activeTabId, r);
   },
 
   cancel() {
@@ -353,7 +358,7 @@ async function requestAnySiteAccess() {
 
 /** List the fields we could not fill, so the user knows what is left. */
 /** Ask the page to scroll to and flash one of the fields left for you. */
-function locateField(ref, li) {
+async function locateField(ref, li) {
   if (!ref) return;
   if (li) {
     li.classList.add("locating");
@@ -361,9 +366,12 @@ function locateField(ref, li) {
   }
   if (typeof activeTabId !== "number") return;
   try {
-    chrome.tabs.sendMessage(activeTabId, { type: "JOB_AUTOFILL_LOCATE", ref });
+    // Rejects when no content script answers, i.e. the page was reloaded or
+    // navigated since that fill and its stored handles no longer exist. Say so
+    // rather than looking like a dead click.
+    await chrome.tabs.sendMessage(activeTabId, { type: "JOB_AUTOFILL_LOCATE", ref });
   } catch (err) {
-    /* the frame may be gone, or access is no longer granted */
+    setStatus("That page has changed since the fill — press Fill Application again.", "warn");
   }
 }
 
@@ -411,5 +419,98 @@ function renderUnfilled(entries) {
     more.className = "more";
     more.textContent = `…and ${sorted.length - shown.length} more`;
     list.appendChild(more);
+  }
+}
+
+// --- The remembered run, per tab -------------------------------------------
+// The popup is a brand-new document every time it opens, so anything rendered
+// from a live message is gone the instant it closes — which is exactly when the
+// user needs it, because they close the popup to go and fill those fields by
+// hand. A finished run is therefore stored per tab and rebuilt on the next open.
+// It holds field labels only, and `Delete all` clears it with everything else.
+
+async function readRuns() {
+  try {
+    const data = await chrome.storage.local.get(RUNS_KEY);
+    const raw = data && data[RUNS_KEY];
+    return raw && typeof raw === "object" ? raw : {};
+  } catch (err) {
+    return {};
+  }
+}
+
+/** Store a finished run under its tab, pruning expired and extra records. */
+async function saveRun(tabId, results) {
+  if (typeof tabId !== "number" || !results) return;
+  const runs = await readRuns();
+  const cutoff = Date.now() - JOB_AUTOFILL_SHARED.runMaxAgeMs;
+  const record = { tabId, at: Date.now(), results };
+
+  // Keep only recent records, and never prune the one just written.
+  const older = [];
+  for (const key of Object.keys(runs)) {
+    const kept = runs[key];
+    if (kept && typeof kept.at === "number" && kept.at >= cutoff && kept.tabId !== tabId) {
+      older.push(kept);
+    }
+  }
+  older.sort((a, b) => b.at - a.at);
+
+  const pruned = {};
+  for (const kept of [record].concat(older.slice(0, JOB_AUTOFILL_SHARED.maxRuns - 1))) {
+    pruned[String(kept.tabId)] = kept;
+  }
+  try {
+    await chrome.storage.local.set({ [RUNS_KEY]: pruned });
+  } catch (err) {
+    /* remembering the list is a convenience — never let it break a fill */
+  }
+}
+
+/** Rebuild the "fields left for you" list for the active tab, if we have one. */
+async function restoreRun() {
+  if (!$("unfilledList")) return; // the list only exists on the popup screen
+  if (aggregate.active) return; // a fill is already reporting into it
+
+  let tab;
+  try {
+    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  } catch (err) {
+    return;
+  }
+  if (!tab || typeof tab.id !== "number") return;
+
+  const runs = await readRuns();
+  const record = runs[String(tab.id)];
+  const results = record && record.results;
+  if (!results || !Array.isArray(results.unfilled) || results.unfilled.length === 0) {
+    return;
+  }
+  // A stale record describes a page that has almost certainly changed since.
+  if (typeof record.at !== "number" || record.at < Date.now() - JOB_AUTOFILL_SHARED.runMaxAgeMs) {
+    return;
+  }
+
+  // Point click-to-locate back at this tab: the stored handles are only useful
+  // if we know where to send them.
+  activeTabId = tab.id;
+  renderUnfilled(results.unfilled);
+  showGrantRow(results.iframes > 0 && results.frames < 1 + results.iframes);
+  setStatus(
+    `Left for you after your fill at ${formatTime(record.at)} — ` +
+      "press Fill Application to re-check.",
+    ""
+  );
+}
+
+/** Local wall-clock time for a stored timestamp. */
+function formatTime(at) {
+  try {
+    return new Date(at).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  } catch (err) {
+    return "earlier";
   }
 }

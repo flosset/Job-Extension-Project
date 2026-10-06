@@ -634,8 +634,10 @@ async function deleteAllData() {
     return;
   }
   try {
-    // Both keys go: the profile AND anything learned from typing.
-    await chrome.storage.local.remove([STORAGE_KEY, LEARNED_KEY]);
+    // Everything this extension stored: the profile, anything learned from
+    // typing, and the remembered "fields left for you" lists (those hold field
+    // labels, so they are user data too).
+    await chrome.storage.local.remove([STORAGE_KEY, LEARNED_KEY, RUNS_KEY]);
   } catch (err) {
     setStatus("Could not clear local storage.", "warn");
     return;

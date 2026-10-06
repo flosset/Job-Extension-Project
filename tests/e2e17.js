@@ -200,7 +200,8 @@ const SOURCE_PROFILE = {
     "H: delete-all removed the profile AND learned answers",
     Array.isArray(removedKey) &&
       removedKey.indexOf("jobProfile") >= 0 &&
-      removedKey.indexOf("learnedAnswers") >= 0,
+      removedKey.indexOf("learnedAnswers") >= 0 &&
+      removedKey.indexOf("lastRuns") >= 0,
     JSON.stringify(removedKey)
   );
   t("H: delete-all cleared the form", $("firstName").value === "");

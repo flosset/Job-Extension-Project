@@ -33,6 +33,10 @@ document.addEventListener("DOMContentLoaded", () => {
   on("dismissLearnedAllBtn", "click", dismissAllLearned);
   loadLearned();
 
+  // The popup is a fresh document on every open, so rebuild the "fields left
+  // for you" list from the last run on this tab instead of losing it.
+  restoreRun();
+
   // Any edit in the form means what is on screen differs from what is stored.
   on("profileForm", "input", markDirty);
   on("profileForm", "change", markDirty);

@@ -20,11 +20,18 @@ var JOB_AUTOFILL_SHARED = {
   /** chrome.storage.local keys. */
   keys: {
     profile: "jobProfile",
-    learned: "learnedAnswers"
+    learned: "learnedAnswers",
+    // The last finished fill, per tab — so the popup can rebuild the "fields
+    // left for you" list after it is closed and reopened.
+    runs: "lastRuns"
   },
 
   /** How long a whole fill run may take, in ms (popup and worker agree). */
   runDeadlineMs: 15000,
+
+  /** How many tabs' worth of finished runs to remember, and for how long. */
+  maxRuns: 5,
+  runMaxAgeMs: 6 * 60 * 60 * 1000,
 
   /** Hard cap on the "answers you typed" list, so it can never grow forever. */
   maxLearned: 20,

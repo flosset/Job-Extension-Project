@@ -18,7 +18,9 @@ no telemetry, no accounts.
   answer you type is offered back as a new bank entry — never saved without a
   click, and never twice for the same question.
 - Tells you exactly which fields are **left for you**, required first, and lets
-  you click one to be shown where it is on the page.
+  you click one to be shown where it is on the page. The list is remembered
+  **per tab**, so it is still there when you reopen the popup to work through
+  those fields by hand.
 - **Alt+Shift+F** fills the page without opening the popup — handy on multi-page
   Workday forms — and the toolbar badge reports the result.
 
@@ -31,7 +33,11 @@ field list sends a single "scroll to this" message for a tab you just filled.
 
 The learned answers below the answer bank are **candidates**, not settings. They
 sit in their own storage key, are shown with a Save button each, and only become
-bank entries when you click. `Delete all` removes them too.
+bank entries when you click.
+
+The last fill's "fields left for you" list is remembered per tab (at most five
+tabs, six hours) so it survives closing the popup. It holds field labels only,
+and `Delete all` removes it, the learned candidates and your profile together.
 
 
 `Export data` writes your profile (including the resume) to a JSON file — that
@@ -170,6 +176,7 @@ node e2e20.js     # answer-bank scope, loose selectors, full name
 node e2e21.js     # optional broad host access
 node e2e22.js     # learn-from-typing + the four dedupe rules
 node e2e23.js     # Alt+Shift+F, the badge, cross-context drift guards
+node e2e24.js     # "fields left for you" survives the popup closing
 node matcher-test.js
 ```
 

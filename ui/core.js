@@ -9,6 +9,7 @@
 // shortcut handler and the fill itself can never disagree about them.
 const STORAGE_KEY = JOB_AUTOFILL_SHARED.keys.profile;
 const LEARNED_KEY = JOB_AUTOFILL_SHARED.keys.learned;
+const RUNS_KEY = JOB_AUTOFILL_SHARED.keys.runs;
 
 // The injected content scripts, in load order. They share the
 // window.__JobAutofill namespace inside the page's isolated world, so the
