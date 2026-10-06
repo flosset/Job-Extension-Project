@@ -196,7 +196,13 @@ const SOURCE_PROFILE = {
   // --- H. Delete-all -------------------------------------------------------
   removedKey = null;
   await T.deleteAllData();
-  t("H: delete-all removed the storage key", removedKey === "jobProfile", removedKey);
+  t(
+    "H: delete-all removed the profile AND learned answers",
+    Array.isArray(removedKey) &&
+      removedKey.indexOf("jobProfile") >= 0 &&
+      removedKey.indexOf("learnedAnswers") >= 0,
+    JSON.stringify(removedKey)
+  );
   t("H: delete-all cleared the form", $("firstName").value === "");
   t("H: delete-all leaves the form clean", window.__t.dirty === false && badgeHidden() === true);
   t("H: delete-all status shown", /deleted/i.test(statusText()), statusText());

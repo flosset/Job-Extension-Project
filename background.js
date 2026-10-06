@@ -1,0 +1,209 @@
+// background.js — the MV3 service worker. It exists for exactly two reasons.
+//
+//   1. The keyboard shortcut (Alt+Shift+F). A popup cannot be opened by a
+//      shortcut, so starting a fill has to be possible from outside it: the
+//      worker injects the same content scripts the popup injects, and the page
+//      then fills itself. The command counts as a user gesture, so activeTab is
+//      granted and no extra permission is needed.
+//   2. The toolbar badge. It is the only persistent "there is something to do"
+//      signal we have without a popup — the number of answers learned from
+//      typing that are waiting to be reviewed.
+//
+// Nothing here reads a page's content, and nothing leaves the browser.
+//
+// Completion is defined exactly the way the popup defines it: executeScript
+// tells us how many frames it reached, so we wait for EVERY one of them to
+// report (or for the deadline) rather than guessing from a quiet gap.
+
+importScripts("shared.js"); // the ONE content-script list + storage keys
+
+const KEYS = JOB_AUTOFILL_SHARED.keys;
+const SCRIPTS = JOB_AUTOFILL_SHARED.contentScripts;
+const COMMAND = "fill-active-form";
+
+/**
+ * All mutable state lives in one object: the badge has a single owner (render),
+ * and a test can fast-forward the timings without patching globals.
+ */
+const state = {
+  pending: 0,  // answers waiting to be reviewed
+  flash: null, // the transient badge (a fill result), if any
+  run: null,   // the in-flight shortcut run, if any
+  deadlineMs: JOB_AUTOFILL_SHARED.runDeadlineMs,
+  flashMs: 5000
+};
+
+function setBadge(text, color, title) {
+  try {
+    chrome.action.setBadgeText({ text });
+    if (color) chrome.action.setBadgeBackgroundColor({ color });
+    if (title) chrome.action.setTitle({ title });
+  } catch (err) {
+    /* the badge is cosmetic — it must never break a fill */
+  }
+}
+
+/** The badge shows one thing at a time: a fresh result, else the review count. */
+function render() {
+  const flash = state.flash;
+  if (flash && Date.now() - flash.at < state.flashMs) {
+    setBadge(flash.text, flash.color, flash.title);
+    setTimeout(render, state.flashMs + 50); // fall back once it expires
+    return;
+  }
+  if (state.pending > 0) {
+    setBadge(
+      String(state.pending),
+      "#b45309",
+      `${state.pending} answer${state.pending === 1 ? "" : "s"} you typed can be ` +
+        "saved to your answer bank — open the popup to review them"
+    );
+    return;
+  }
+  setBadge("", "", "Private Job Autofill — press Alt+Shift+F to fill this application");
+}
+
+/** Count what is waiting for review and show it. */
+async function refreshPending() {
+  try {
+    const data = await chrome.storage.local.get(KEYS.learned);
+    state.pending = JOB_AUTOFILL_SHARED.sanitizeLearned(
+      data && data[KEYS.learned]
+    ).candidates.length;
+  } catch (err) {
+    state.pending = 0;
+  }
+  render();
+}
+
+/** Show a short-lived badge message; the review count returns when it expires. */
+function flashResult(text, color, title) {
+  state.flash = { text, color, title, at: Date.now() };
+  render();
+}
+
+/** Inject the content scripts into every frame, exactly like the popup does. */
+async function injectAllFrames(tabId) {
+  const target = { tabId, allFrames: true };
+  try {
+    return await chrome.scripting.executeScript({
+      target,
+      files: SCRIPTS,
+      matchOriginAsFallback: true
+    });
+  } catch (err) {
+    // Chrome builds without matchOriginAsFallback: retry plainly.
+    const message = String((err && err.message) || err);
+    if (/matchOriginAsFallback/i.test(message)) {
+      return await chrome.scripting.executeScript({ target, files: SCRIPTS });
+    }
+    throw err;
+  }
+}
+
+function finishRun(run) {
+  if (state.run !== run) return; // a newer run replaced it
+  clearTimeout(run.timer);
+  state.run = null;
+  if (run.filled > 0) {
+    flashResult(
+      String(run.filled),
+      "#0b7a3b",
+      `Filled ${run.filled} field${run.filled === 1 ? "" : "s"} on this application`
+    );
+  } else {
+    flashResult(
+      "0",
+      "#8a909c",
+      "Nothing to fill here — open the popup for the details"
+    );
+  }
+}
+
+/** Every expected frame has replied — the run is over. */
+function finishIfComplete(run) {
+  if (run.expected !== null && run.replies >= run.expected) finishRun(run);
+}
+
+/** The Alt+Shift+F path: fill the active tab without ever opening the popup. */
+async function startShortcutFill() {
+  if (state.run) return; // one shortcut fill at a time
+
+  let tab;
+  try {
+    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  } catch (err) {
+    return;
+  }
+  if (!tab || typeof tab.id !== "number") {
+    flashResult("!", "#b91c1c", "There is no page to fill — open the application first");
+    return;
+  }
+  // The URL is only known when activeTab applies; if it is missing, let the
+  // injection decide and report a real error rather than guessing.
+  const url = (tab && tab.url) || "";
+  if (url && !/^https?:/i.test(url)) {
+    flashResult(
+      "!",
+      "#b91c1c",
+      "This page cannot be filled — open the job application first"
+    );
+    return;
+  }
+
+  const run = {
+    tabId: tab.id,
+    expected: null,
+    replies: 0,
+    filled: 0,
+    errors: 0,
+    timer: null
+  };
+  state.run = run;
+  flashResult("…", "#2563eb", "Filling this application…");
+
+  try {
+    const injected = await injectAllFrames(tab.id);
+    run.expected = Array.isArray(injected) ? injected.length : 1;
+  } catch (err) {
+    state.run = null;
+    flashResult(
+      "!",
+      "#b91c1c",
+      "Cannot fill this page — open the popup once to allow this site, then try again"
+    );
+    return;
+  }
+
+  run.timer = setTimeout(() => finishRun(run), state.deadlineMs);
+  finishIfComplete(run);
+}
+
+chrome.commands.onCommand.addListener((command) => {
+  if (command === COMMAND) startShortcutFill();
+});
+
+// Results arrive from the injected autofill.js in every frame. "busy" counts as
+// a reply (executeScript reached that frame too), so the run can still complete.
+chrome.runtime.onMessage.addListener((message, sender) => {
+  const run = state.run;
+  if (!run || !message || message.type !== "JOB_AUTOFILL_RESULT") return;
+  if (!sender || !sender.tab || sender.tab.id !== run.tabId) return;
+  run.replies++;
+  if (message.status === "ok") {
+    run.filled += Number(message.filled) || 0;
+  } else if (message.status === "error") {
+    run.errors++;
+  }
+  finishIfComplete(run);
+});
+
+// The badge follows the pending-review count, wherever that is written.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !changes[KEYS.learned]) return;
+  refreshPending();
+});
+chrome.runtime.onInstalled.addListener(refreshPending);
+chrome.runtime.onStartup.addListener(refreshPending);
+refreshPending();
+

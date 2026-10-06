@@ -27,6 +27,12 @@ document.addEventListener("DOMContentLoaded", () => {
   on("importFile", "change", onImportFilePicked);
   on("deleteAllBtn", "click", deleteAllData);
 
+  // "Learn from what you type": the content script leaves candidates behind, so
+  // show them on whichever page just opened and let the user accept them.
+  on("saveLearnedAllBtn", "click", saveAllLearned);
+  on("dismissLearnedAllBtn", "click", dismissAllLearned);
+  loadLearned();
+
   // Any edit in the form means what is on screen differs from what is stored.
   on("profileForm", "input", markDirty);
   on("profileForm", "change", markDirty);

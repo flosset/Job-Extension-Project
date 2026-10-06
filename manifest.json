@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Private Job Autofill",
-  "version": "1.20.0",
+  "version": "1.21.0",
   "description": "Privacy-first, zero-lag job application autofill. 100% local storage. No tracking, no telemetry, no external requests.",
   "permissions": ["storage", "unlimitedStorage", "activeTab", "scripting"],
   "host_permissions": [
@@ -27,6 +27,17 @@
     "*://*.recruiterbox.com/*"
   ],
   "optional_host_permissions": ["*://*/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "fill-active-form": {
+      "suggested_key": {
+        "default": "Alt+Shift+F"
+      },
+      "description": "Fill the current job application"
+    }
+  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "Private Job Autofill"

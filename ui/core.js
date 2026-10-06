@@ -3,22 +3,17 @@
 
 "use strict";
 
-const STORAGE_KEY = "jobProfile";
+// The two storage keys, and the injected script list, come from shared.js —
+// it is loaded before this file by both pages, imported by the service worker
+// and injected into the page as the first content script, so the popup, the
+// shortcut handler and the fill itself can never disagree about them.
+const STORAGE_KEY = JOB_AUTOFILL_SHARED.keys.profile;
+const LEARNED_KEY = JOB_AUTOFILL_SHARED.keys.learned;
 
 // The injected content scripts, in load order. They share the
 // window.__JobAutofill namespace inside the page's isolated world, so the
-// order matters: data → helpers → combobox driver → orchestrator.
-const CONTENT_SCRIPTS = [
-  "content/field-map.js",
-  "content/dom-utils.js",
-  "content/combobox.js",
-  "content/fill.js",
-  "content/dates.js",
-  "content/repeatable.js",
-  "content/radios.js",
-  "content/files.js",
-  "content/autofill.js"
-];
+// order matters: shared data → helpers → widgets → learning → orchestrator.
+const CONTENT_SCRIPTS = JOB_AUTOFILL_SHARED.contentScripts;
 
 // Every field id in popup.html that maps 1:1 to a key in the stored profile.
 const PROFILE_FIELDS = [

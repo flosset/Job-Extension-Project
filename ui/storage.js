@@ -634,7 +634,8 @@ async function deleteAllData() {
     return;
   }
   try {
-    await chrome.storage.local.remove(STORAGE_KEY);
+    // Both keys go: the profile AND anything learned from typing.
+    await chrome.storage.local.remove([STORAGE_KEY, LEARNED_KEY]);
   } catch (err) {
     setStatus("Could not clear local storage.", "warn");
     return;

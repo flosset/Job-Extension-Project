@@ -19,7 +19,13 @@
   }
   window.__jobAutofillActive = true;
 
-  const STORAGE_KEY = "jobProfile";
+  // The profile key comes from shared.js (injected as the first content script)
+  // with a literal fallback, so a missing shared.js can never break a fill.
+  const STORAGE_KEY =
+    (window.JOB_AUTOFILL_SHARED &&
+      window.JOB_AUTOFILL_SHARED.keys &&
+      window.JOB_AUTOFILL_SHARED.keys.profile) ||
+    "jobProfile";
 
   // --- Matcher ------------------------------------------------------------
 
@@ -529,7 +535,10 @@
       revealed = await JA.revealComboOptions(5);
     }
 
-    const unfilled = collectUnfilled(used).concat(revealed).slice(0, 40);
+    // Collected before `revealed` is appended: a revealed dropdown's label is
+    // the option list, not a question, so it must never become a learned answer.
+    const missing = collectUnfilled(used);
+    const unfilled = missing.concat(revealed).slice(0, 40);
     const scanned = scanCount();
     const iframes = iframeCount();
     console.log(
@@ -560,6 +569,17 @@
       scanned,
       iframes
     });
+
+    // "Learn from what you type": the fields we could NOT answer are exactly
+    // the ones the user will fill by hand, so watch those and offer to remember
+    // whatever they type.
+    if (JA.armLearning) {
+      try {
+        JA.armLearning(missing);
+      } catch (err) {
+        /* learning is a bonus — it must never break a fill */
+      }
+    }
   }
 
   // Always report the outcome and release the re-entrancy guard, even if a

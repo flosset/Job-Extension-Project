@@ -14,15 +14,25 @@ no telemetry, no accounts.
   only if you opt in — remove leftover blocks).
 - **Auto-attaches your resume** and warns you if the site never confirmed it.
 - Answers free-text questions from an **answer bank** you write yourself.
+- **Learns from what you type.** Any field the fill left for you is watched; the
+  answer you type is offered back as a new bank entry — never saved without a
+  click, and never twice for the same question.
 - Tells you exactly which fields are **left for you**, required first, and lets
   you click one to be shown where it is on the page.
+- **Alt+Shift+F** fills the page without opening the popup — handy on multi-page
+  Workday forms — and the toolbar badge reports the result.
 
 ## Privacy
 
 Everything lives in `chrome.storage.local`. The extension makes no outbound
-requests and has no background service worker doing anything on its own. It
-only touches a page when you press **Fill Application** (or the field list sends
-a single "scroll to this" message for a tab you just filled).
+requests and does nothing on a page you did not ask for: the service worker only
+runs a fill when you press **Fill Application**, press **Alt+Shift+F**, or the
+field list sends a single "scroll to this" message for a tab you just filled.
+
+The learned answers below the answer bank are **candidates**, not settings. They
+sit in their own storage key, are shown with a Save button each, and only become
+bank entries when you click. `Delete all` removes them too.
+
 
 `Export data` writes your profile (including the resume) to a JSON file — that
 file contains personal details, so keep it somewhere safe. `Delete all` wipes
@@ -60,6 +70,13 @@ These are the things the extension deliberately refuses to do:
 4. **Never delete without being asked.** Surplus history blocks are counted and
    reported, but only removed when you tick the destructive option — and only
    if a confirmation dialog that genuinely mentions deleting appears.
+5. **Never bank the same question twice.** A question the answer bank already
+   answers is never learned again, whatever the new answer is, because two
+   entries asking one question would compete for the same field and which one
+   wins would be arbitrary.
+6. **Never guess an ambiguous answer.** If the same question shows up twice with
+   different answers, nothing is learned from it and the user is told — rather
+   than silently remembering the wrong one.
 5. **Never mis-report.** Results wait for every frame to answer, and the popup
    says so when one didn't.
 
@@ -69,6 +86,8 @@ Plain ES2020+ scripts, no build step. The injected files share one namespace
 (`window.__JobAutofill`) and must load in this order:
 
 ```
+shared.js              the ONE list of injected files + storage keys (also
+                       imported by the service worker, loaded by both pages)
 content/field-map.js   pure data: selector/keyword/synonym tables
 content/dom-utils.js   text + DOM helpers, the polarity-safe matcher
 content/combobox.js    react-select driver (open → read → commit → close)
@@ -77,26 +96,33 @@ content/dates.js       month/year select pairs
 content/repeatable.js  Work Experience / Education sections
 content/radios.js      Yes/No radio groups
 content/files.js       resume auto-attach
+content/learn.js       watches the fields left for you, records candidates
 content/autofill.js    orchestrator: reads the profile, fills, reports
 ```
 
-`popup.html` and `options.html` are the two screens; both load the same four UI
+`popup.html` and `options.html` are the two screens; both load the same six UI
 scripts, in this order (top-level bindings in classic scripts are visible to
 later ones, so order matters):
 
 ```
-ui/core.js         shared constants + the null-safe DOM helpers
+shared.js          the shared list + keys + the dedupe rule
+ui/core.js         constants and the null-safe DOM helpers
 ui/storage.js      profile load/save, repeatable cards, resume, export/import
+ui/learned.js      the review step for answers learned from typing
 ui/fill-runner.js  injection into every frame, result aggregation, status
 ui/editor.js       bootstrap: wires whichever controls this page owns
 ```
 
+`background.js` is the MV3 service worker: the Alt+Shift+F command and the
+toolbar badge. It renders the badge from one place, so a fresh fill result and
+the "N answers to review" count can never fight over it.
+
 Every element lookup is null-safe, so a page only needs the controls it uses —
 the compact popup and the full editor share all of this code.
 
-Injected files cannot `import`, so `ui/core.js` lists them in
-`CONTENT_SCRIPTS` and `ui/fill-runner.js` hands that list to
-`chrome.scripting.executeScript`, which evaluates them in order.
+Injected files cannot `import`, so `shared.js` holds the list as
+`JOB_AUTOFILL_SHARED.contentScripts` — the popup and the worker both read it from
+there, and a test asserts the two can never disagree.
 
 ### Adding label synonyms
 
@@ -141,6 +167,9 @@ node e2e17.js     # export / import / delete-all
 node e2e18.js     # popup vs options split
 node e2e19.js     # "fields left for you"
 node e2e20.js     # answer-bank scope, loose selectors, full name
+node e2e21.js     # optional broad host access
+node e2e22.js     # learn-from-typing + the four dedupe rules
+node e2e23.js     # Alt+Shift+F, the badge, cross-context drift guards
 node matcher-test.js
 ```
 

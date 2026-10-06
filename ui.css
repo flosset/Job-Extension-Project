@@ -1,6 +1,10 @@
 
     * { box-sizing: border-box; }
 
+    /* A hidden section must stay hidden even when it also carries a class that
+       sets `display` (.field is a grid, #learnedSection is a .field). */
+    [hidden] { display: none !important; }
+
     body {
       width: 340px;
       max-width: 350px;
@@ -157,6 +161,25 @@
       border-radius: 6px;
     }
     .snip-add:hover { filter: brightness(0.97); }
+
+    /* --- "Answers you typed" (learned candidates) --------------------------
+       The same grid as a snippet row, plus a Save button, so a candidate looks
+       like the bank entry it is about to become. */
+    .learn-row { grid-template-columns: 1fr 1fr auto 24px; }
+    .learn-row .snip-key { font-weight: 600; }
+    .learn-save {
+      flex: 0 0 auto;
+      height: 24px;
+      padding: 0 9px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #0b7a3b;
+      background: #e7f7ee;
+      border: 1px solid #bfe8cd;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+    .learn-save:hover { filter: brightness(0.97); }
 
     .exp-card {
       border: 1px solid #e6e9ef;

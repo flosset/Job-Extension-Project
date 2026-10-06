@@ -267,6 +267,16 @@
         <div id="snippetRows"></div>
         <button type="button" id="addSnippetBtn" class="snip-add">＋ Add answer</button>
       </div>
+
+      <div class="field full" id="learnedSection" hidden>
+        <div class="sect">Answers you typed</div>
+        <p class="note" id="learnedNote"></p>
+        <div id="learnedRows"></div>
+        <div class="actions sub">
+          <button type="button" id="saveLearnedAllBtn" class="ghost">Save all</button>
+          <button type="button" id="dismissLearnedAllBtn" class="ghost">Dismiss all</button>
+        </div>
+      </div>
     </div>
 
     <div class="actions">
@@ -292,8 +302,10 @@
 
   <footer>Data stays in this browser (chrome.storage.local).</footer>
 
+  <script src="shared.js"></script>
   <script src="ui/core.js"></script>
   <script src="ui/storage.js"></script>
+  <script src="ui/learned.js"></script>
   <script src="ui/fill-runner.js"></script>
   <script src="ui/editor.js"></script>
 </body>
