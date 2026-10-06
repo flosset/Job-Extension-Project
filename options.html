@@ -52,6 +52,22 @@
 
   <p id="profileSummary" class="summary" role="status" aria-live="polite"></p>
 
+  <div class="sect">Profiles</div>
+  <div class="field full">
+    <p class="note">
+      Each profile is a complete copy of everything below, including its own
+      resume, so you can keep a Frontend and a Full-stack version and pick one
+      per application. Switching takes effect for the next fill.
+    </p>
+    <div class="row">
+      <select id="profileSelect" aria-label="Active profile"></select>
+      <button type="button" id="profileNewBtn" class="ghost">New</button>
+      <button type="button" id="profileRenameBtn" class="ghost">Rename</button>
+      <button type="button" id="profileDupBtn" class="ghost">Duplicate</button>
+      <button type="button" id="profileDeleteBtn" class="ghost danger">Delete</button>
+    </div>
+  </div>
+
   <form id="profileForm" autocomplete="off">
     <div class="grid">
       <div class="field">
@@ -77,6 +93,17 @@
       <div class="field">
         <label for="phone">Phone</label>
         <input type="tel" id="phone" name="phone" placeholder="+1 555 123 4567" />
+      </div>
+
+      <div class="field">
+        <label for="phoneCountry">Phone country code (split fields)</label>
+        <input type="text" id="phoneCountry" name="phoneCountry" placeholder="+1" />
+        <p class="note">Only for forms with a separate country-code box. Leave blank to take it from the phone above.</p>
+      </div>
+
+      <div class="field">
+        <label for="phoneNational">Phone number, without the code</label>
+        <input type="tel" id="phoneNational" name="phoneNational" placeholder="555 123 4567" />
       </div>
 
       <div class="field">
@@ -277,6 +304,19 @@
           <button type="button" id="dismissLearnedAllBtn" class="ghost">Dismiss all</button>
         </div>
       </div>
+
+      <div class="field full">
+        <div class="sect">Cover letter templates</div>
+        <p class="note">
+          Placeholders: <code>{company}</code> <code>{role}</code>
+          <code>{firstName}</code> <code>{fullName}</code> <code>{email}</code>
+          <code>{phone}</code> <code>{city}</code> <code>{today}</code>. They are
+          filled in from the job on the page when you open the popup, and an
+          unknown placeholder is left as written so a typo stays visible.
+        </p>
+        <div id="templateRows"></div>
+        <button type="button" id="addTemplateBtn" class="snip-add">&#65291; Add template</button>
+      </div>
     </div>
 
     <div class="actions">
@@ -289,6 +329,20 @@
       <span>Also remove leftover work/education blocks on the page (destructive)</span>
     </label>
   </form>
+
+  <div class="sect">Applications</div>
+  <div class="field full">
+    <p class="note">
+      Logged automatically when you press Fill on a job posting, so you can see
+      where you have already applied. Pressing Fill twice on the same form in one
+      sitting counts once.
+    </p>
+    <div id="appRows"></div>
+    <div class="actions sub">
+      <button type="button" id="exportAppsBtn" class="ghost">Export CSV</button>
+      <button type="button" id="clearAppsBtn" class="ghost danger">Clear log</button>
+    </div>
+  </div>
 
   <p id="status" role="status" aria-live="polite"></p>
 
@@ -307,6 +361,9 @@
   <script src="ui/storage.js"></script>
   <script src="ui/learned.js"></script>
   <script src="ui/fill-runner.js"></script>
+  <script src="ui/profiles.js"></script>
+  <script src="ui/tracker.js"></script>
+  <script src="ui/cover-letter.js"></script>
   <script src="ui/editor.js"></script>
 </body>
 </html>

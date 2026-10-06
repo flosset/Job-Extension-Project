@@ -33,13 +33,9 @@
   function attributeMatches(selectorList) {
     const out = [];
     for (const selector of selectorList || []) {
-      let nodes;
-      try {
-        nodes = document.querySelectorAll(selector);
-      } catch (err) {
-        continue; // Ignore any selector the browser can't parse.
-      }
-      for (const el of nodes) out.push(el);
+      // JA.queryAll, not document.querySelectorAll: a field inside an open
+      // shadow root is invisible to the latter.
+      for (const el of JA.queryAll(selector)) out.push(el);
     }
     return out;
   }
@@ -77,11 +73,22 @@
     const candidates = attributeMatches(JA.ATTRIBUTE_SELECTORS[key]).concat(
       keywordMatches(pool, JA.KEYWORDS[key], null)
     );
-    return pickElement(
-      candidates,
-      used,
-      (el) => el.tagName !== "SELECT" && !JA.isComboboxInput(el)
-    );
+    return pickElement(candidates, used, (el) => {
+      if (el.tagName === "SELECT" || JA.isComboboxInput(el)) return false;
+      // A phone EXTENSION is not a phone number: it must never receive one.
+      // The literal fallback keeps a fill working even if field-map.js were
+      // somehow absent — a missing helper must never abort the whole run.
+      if (
+        key === "phone" &&
+        JA.matchesKeywords(
+          JA.normalize(JA.getSignal(el)),
+          JA.PHONE_EXTENSION_KEYWORDS || ["extension", "ext", "extn"]
+        )
+      ) {
+        return false;
+      }
+      return true;
+    });
   }
 
   /** Pick the best <select> for a self-identification key. */
@@ -183,16 +190,28 @@
 
   /** Run a full fill pass over the current DOM; returns { filled, used }. */
   function fillEverything(profile) {
-    const pool = Array.from(
-      document.querySelectorAll(
-        'input, textarea, select, [contenteditable="true"], [contenteditable=""]'
-      )
-    ).filter(JA.isFillable);
+    // JA.fieldPool walks open shadow roots too, so a web-component field is
+    // found exactly like a plain one.
+    const pool = JA.fieldPool().filter(JA.isFillable);
 
     const used = new Set();
     let filled = 0;
 
+    // Split phone widgets first (Taleo/Workday): the country-code selector and
+    // the number box must be claimed BEFORE the single-field pass sees them,
+    // otherwise the number box would also be handed the whole "+1 555 1234".
+    let splitPhone = false;
+    if (JA.fillPhoneParts) {
+      const split = JA.fillPhoneParts(profile, pool);
+      if (split && split.filled) filled += split.filled;
+      splitPhone = !!(split && split.recognised);
+      for (const el of (split && split.used) || []) used.add(el);
+    }
+
     for (const key of Object.keys(JA.ATTRIBUTE_SELECTORS)) {
+      // The split widget has already spent the phone number. Filling another
+      // phone-ish field with the whole value would duplicate it.
+      if (key === "phone" && splitPhone) continue;
       const value = profile[key];
       if (!value || typeof value !== "string") continue;
 
@@ -329,11 +348,7 @@
    * questions too.
    */
   function collectUnfilled(used) {
-    const pool = Array.from(
-      document.querySelectorAll(
-        'input, textarea, select, [contenteditable="true"], [contenteditable=""]'
-      )
-    );
+    const pool = JA.fieldPool();
 
     const out = [];
     const seen = new Set();
@@ -388,7 +403,7 @@
 
   /** Count the form fields present in this frame (diagnostic). */
   function scanCount() {
-    return document.querySelectorAll("input, select, textarea").length;
+    return JA.queryAll("input, select, textarea").length;
   }
 
   /**
@@ -554,6 +569,13 @@
       "| unfilled:", unfilled.length
     );
 
+    // What this page is an application FOR, for the tracker (top frame only —
+    // page-info returns null in a subframe).
+    const page = JA.pageInfo ? JA.pageInfo() : null;
+    if (page) {
+      console.log("[JobAutofill] job:", page.company || page.host, "|", page.role || "(no title)");
+    }
+
     report({
       status: "ok",
       filled,
@@ -565,6 +587,7 @@
       surplus,
       flagged,
       unfilled,
+      page,
       frame: location.href,
       scanned,
       iframes
@@ -594,12 +617,46 @@
     return JA.locateElement ? JA.locateElement(el) : false;
   }
 
-  if (!window.__jobAutofillLocate) {
-    window.__jobAutofillLocate = true;
+  /**
+   * Type a generated cover letter into the matching box, on request. Never part
+   * of a normal fill: a letter is composed per application and the user asks for
+   * it explicitly.
+   */
+  async function fillCoverLetter(text) {
+    if (!text || typeof text !== "string") return false;
+    if (!JA.fillFieldByKeywords) return false;
     try {
-      chrome.runtime.onMessage.addListener((message) => {
-        if (!message || message.type !== "JOB_AUTOFILL_LOCATE") return;
-        locateByRef(message.ref);
+      return await JA.fillFieldByKeywords(
+        document,
+        JA.COVER_LETTER_KEYWORDS || ["cover letter"],
+        text
+      );
+    } catch (err) {
+      return false;
+    }
+  }
+
+  if (!window.__jobAutofillMessages) {
+    window.__jobAutofillMessages = true;
+    try {
+      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (!message) return;
+        if (message.type === "JOB_AUTOFILL_LOCATE") {
+          locateByRef(message.ref);
+          return;
+        }
+        if (message.type === "JOB_AUTOFILL_COVER_LETTER") {
+          // Answer asynchronously (return true keeps the channel open) so the
+          // popup can report what really happened instead of guessing.
+          fillCoverLetter(message.text).then((ok) => {
+            try {
+              sendResponse({ ok: !!ok });
+            } catch (err) {
+              /* the popup closed before we answered — nothing to do */
+            }
+          });
+          return true;
+        }
       });
     } catch (err) {
       /* messaging unavailable in this frame — the list still works */

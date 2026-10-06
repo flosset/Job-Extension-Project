@@ -35,13 +35,11 @@
   /** File inputs whose label/id/name matches resume/CV/attach keywords,
    *  excluding zones that belong to a different document (cover letter, …). */
   JA.resumeFileInputs = function () {
-    return Array.from(document.querySelectorAll('input[type="file"]')).filter(
-      (input) => {
-        const signal = fileSignal(input);
-        if (JA.matchesKeywords(signal, JA.FILE_EXCLUDE_KEYWORDS)) return false;
-        return JA.matchesKeywords(signal, JA.FILE_KEYWORDS);
-      }
-    );
+    return JA.queryAll('input[type="file"]').filter((input) => {
+      const signal = fileSignal(input);
+      if (JA.matchesKeywords(signal, JA.FILE_EXCLUDE_KEYWORDS)) return false;
+      return JA.matchesKeywords(signal, JA.FILE_KEYWORDS);
+    });
   };
 
   /** Decode a data: URL into raw bytes (works in the page's isolated world). */

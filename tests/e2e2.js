@@ -5,17 +5,7 @@ const path = require("path");
 const { JSDOM, VirtualConsole } = require("jsdom");
 
 const APP_DIR = "g:\\Programming\\Job Extension Project";
-const SOURCE = [
-  "content/field-map.js",
-  "content/dom-utils.js",
-  "content/combobox.js",
-  "content/fill.js",
-  "content/dates.js",
-  "content/repeatable.js",
-  "content/radios.js",
-  "content/files.js",
-  "content/autofill.js"
-].map((f) => fs.readFileSync(path.join(APP_DIR, f), "utf8")).join("\n");
+const SOURCE = require("./_popup-source").CONTENT_SCRIPTS.map((f) => fs.readFileSync(path.join(APP_DIR, f), "utf8")).join("\n");
 const html = fs.readFileSync(path.join(APP_DIR, "test-form.html"), "utf8");
 
 const vc = new VirtualConsole();

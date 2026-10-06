@@ -9,13 +9,13 @@
   /** All radio inputs on the page, grouped by their shared `name`. */
   JA.radioGroups = function () {
     const byName = new Map();
-    document
-      .querySelectorAll('input[type="radio"]')
-      .forEach((radio) => {
-        const name = radio.name || "__noname_" + (radio.id || "");
-        if (!byName.has(name)) byName.set(name, []);
-        byName.get(name).push(radio);
-      });
+    // JA.queryAll: a radio group rendered by a web component lives inside an
+    // open shadow root, where a plain document.querySelectorAll cannot see it.
+    JA.queryAll('input[type="radio"]').forEach((radio) => {
+      const name = radio.name || "__noname_" + (radio.id || "");
+      if (!byName.has(name)) byName.set(name, []);
+      byName.get(name).push(radio);
+    });
     return Array.from(byName.values());
   };
 

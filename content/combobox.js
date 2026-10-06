@@ -17,9 +17,7 @@
 
   /** All react-select style dropdown controls under `root` (default: page). */
   JA.comboControls = function (root) {
-    return Array.from(
-      (root || document).querySelectorAll('[class*="select__control"]')
-    );
+    return JA.queryAll('[class*="select__control"]', root || document);
   };
 
   /** Find the un-answered dropdown control whose label matches keywords. */
@@ -45,7 +43,7 @@
     return new Promise((resolve) => {
       const deadline = Date.now() + timeoutMs;
       const tick = () => {
-        const options = document.querySelectorAll(
+        const options = JA.queryAll(
           '[class*="select__option"], [role="option"]'
         );
         if (options.length > 0 || Date.now() > deadline) {
@@ -99,9 +97,7 @@
 
   /** All currently rendered dropdown options. */
   JA.optionElements = function () {
-    return Array.from(
-      document.querySelectorAll('[class*="select__option"], [role="option"]')
-    );
+    return JA.queryAll('[class*="select__option"], [role="option"]');
   };
 
   /** Is this control's dropdown menu currently open? */

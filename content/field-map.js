@@ -261,7 +261,6 @@
       "biography",
       "about you",
       "about me",
-      "cover letter",
       "objective",
       "professional summary",
       "describe yourself"
@@ -377,6 +376,26 @@
   // File inputs to leave alone. A cover letter is a different document, so the
   // stored resume must never be dropped into its slot.
   JA.FILE_EXCLUDE_KEYWORDS = ["cover letter", "cover", "transcript"];
+
+  // A phone EXTENSION is not a phone number. Listed here (with the rest of the
+  // matcher data) so every context has it: the page-wide matcher must never pour
+  // a whole phone number into an extension box.
+  JA.PHONE_EXTENSION_KEYWORDS = ["extension", "ext", "extn"];
+
+  // Where a generated cover letter goes. Deliberately NOT part of the profile
+  // keys: a letter is composed per application, so nothing fills these boxes
+  // during an ordinary fill — the user asks for it explicitly.
+  JA.COVER_LETTER_KEYWORDS = [
+    "cover letter",
+    "covering letter",
+    "letter of interest",
+    "letter of motivation",
+    "motivation letter",
+    "why do you want to work",
+    "why are you interested",
+    "anything else you",
+    "additional information"
+  ];
 
   // Stored self-identification value (normalised) → extra tokens to look for
   // in the dropdown's option text (case-insensitive, whole-word). Lets the

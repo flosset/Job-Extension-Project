@@ -33,7 +33,10 @@ const aggregate = {
       removed: 0, surplus: 0,
       flagged: 0, unfilled: [],
       frames: 0, contributingFrames: 0, iframes: 0,
-      sawEmpty: false, sawError: false, sawBusy: false, scanned: 0
+      sawEmpty: false, sawError: false, sawBusy: false, scanned: 0,
+      // What this page is an application for (top frame only) — filled in by
+      // autofill.js from JA.pageInfo().
+      page: null
     };
     const list = $("unfilledList");
     if (list) list.innerHTML = "";
@@ -51,6 +54,8 @@ const aggregate = {
     if (!this.active || !this.results) return;
     this.results.frames++;
     this.results.scanned += Number(message.scanned) || 0;
+    // Only the top frame reports this, so the first non-empty one wins.
+    if (!this.results.page && message.page) this.results.page = message.page;
     this.results.iframes = Math.max(
       this.results.iframes,
       Number(message.iframes) || 0
@@ -123,6 +128,29 @@ const aggregate = {
     clearTimeout(this.timer);
     clearTimeout(this.deadline);
 
+    // Is this a job we have applied to before? Decided from the log as it was
+    // BEFORE this fill, so a run can never report itself as its own duplicate.
+    const page = r.page;
+    let duplicate = null;
+    if (page && (page.company || page.role) && typeof previousApplication === "function") {
+      const previous = previousApplication(page);
+      if (previous) {
+        duplicate = {
+          company: previous.company,
+          role: previous.role,
+          at: previous.lastAt || previous.at
+        };
+      }
+    }
+
+    // Is this run an application worth logging? A page with no form at all, or
+    // one where there was no profile to fill with, is not an application.
+    const willLog = !!(
+      page &&
+      !r.sawEmpty &&
+      (r.filled > 0 || r.attached > 0 || r.flagged > 0 || r.scanned > 0)
+    );
+
     if (r.sawEmpty) {
       setStatus("No saved profile yet — fill it in and press Save first.", "warn");
     } else if (r.filled > 0) {
@@ -151,6 +179,14 @@ const aggregate = {
     // Extras appended to whatever the status line already says, so none of
     // them needs its own branch in the chain above.
     const notes = [];
+
+    // The duplicate warning comes first: it is the reason the user needs to
+    // read this line at all.
+    if (duplicate) {
+      notes.push(`⚠️ Already applied here on ${formatWhen(duplicate.at)}.`);
+    } else if (willLog) {
+      notes.push("📋 Logged to your applications.");
+    }
     if (missing) notes.push(missing.trim());
 
     // An attachment we deliberately left alone — the user's own file, kept.
@@ -193,7 +229,13 @@ const aggregate = {
     // Remember this run for its tab. The popup document is destroyed the moment
     // it closes — and the user closes it precisely to go and fill these fields
     // by hand — so without this the list would vanish exactly when it is useful.
-    saveRun(activeTabId, r);
+    saveRun(activeTabId, r, { page, duplicate });
+
+    // Log the application. `willLog` was decided above, BEFORE the duplicate
+    // warning, so this run can never appear to be its own duplicate.
+    if (willLog) {
+      logRun(page);
+    }
   },
 
   cancel() {
@@ -440,11 +482,19 @@ async function readRuns() {
 }
 
 /** Store a finished run under its tab, pruning expired and extra records. */
-async function saveRun(tabId, results) {
+async function saveRun(tabId, results, extra) {
   if (typeof tabId !== "number" || !results) return;
   const runs = await readRuns();
   const cutoff = Date.now() - JOB_AUTOFILL_SHARED.runMaxAgeMs;
-  const record = { tabId, at: Date.now(), results };
+  const record = {
+    tabId,
+    at: Date.now(),
+    results,
+    // Kept alongside the list so a reopened popup can say the same thing it
+    // said at the time: which job this was, and whether it was a repeat.
+    page: (extra && extra.page) || null,
+    duplicate: (extra && extra.duplicate) || null
+  };
 
   // Keep only recent records, and never prune the one just written.
   const older = [];
@@ -467,6 +517,15 @@ async function saveRun(tabId, results) {
   }
 }
 
+/** Log a finished application, so a later visit to the same job can warn you. */
+async function logRun(page) {
+  try {
+    if (typeof recordApplication === "function") await recordApplication(page);
+  } catch (err) {
+    /* the log is a convenience — it must never break a fill */
+  }
+}
+
 /** Rebuild the "fields left for you" list for the active tab, if we have one. */
 async function restoreRun() {
   if (!$("unfilledList")) return; // the list only exists on the popup screen
@@ -483,24 +542,40 @@ async function restoreRun() {
   const runs = await readRuns();
   const record = runs[String(tab.id)];
   const results = record && record.results;
-  if (!results || !Array.isArray(results.unfilled) || results.unfilled.length === 0) {
-    return;
-  }
+  if (!results) return;
   // A stale record describes a page that has almost certainly changed since.
   if (typeof record.at !== "number" || record.at < Date.now() - JOB_AUTOFILL_SHARED.runMaxAgeMs) {
     return;
   }
 
+  const list = Array.isArray(results.unfilled) ? results.unfilled : [];
+  // Nothing left to show AND nothing to warn about: say nothing at all.
+  if (list.length === 0 && !record.duplicate) return;
+
   // Point click-to-locate back at this tab: the stored handles are only useful
   // if we know where to send them.
   activeTabId = tab.id;
-  renderUnfilled(results.unfilled);
-  showGrantRow(results.iframes > 0 && results.frames < 1 + results.iframes);
-  setStatus(
-    `Left for you after your fill at ${formatTime(record.at)} — ` +
-      "press Fill Application to re-check.",
-    ""
-  );
+  if (list.length > 0) {
+    renderUnfilled(list);
+    showGrantRow(results.iframes > 0 && results.frames < 1 + results.iframes);
+    setStatus(
+      `Left for you after your fill at ${formatTime(record.at)} — ` +
+        "press Fill Application to re-check.",
+      ""
+    );
+  }
+
+  // The warning this run produced is re-shown too, so reopening the popup does
+  // not quietly hide the fact that you have applied here before.
+  if (record.duplicate) {
+    const el = $("status");
+    if (el) {
+      el.textContent =
+        (el.textContent ? el.textContent + " " : "") +
+        `⚠️ Already applied here on ${formatWhen(record.duplicate.at)}.`;
+      el.className = "warn";
+    }
+  }
 }
 
 /** Local wall-clock time for a stored timestamp. */

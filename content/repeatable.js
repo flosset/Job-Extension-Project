@@ -38,7 +38,8 @@
   /** All repeated blocks of a section, in DOM order. */
   JA.sectionBlocks = function (section) {
     const blocks = [];
-    const fields = document.querySelectorAll("input, textarea, select");
+    // JA.queryAll so a section rendered inside an open shadow root is found too.
+    const fields = JA.queryAll("input, textarea, select");
     for (const field of fields) {
       const signal = JA.normalize(JA.getSignal(field));
       if (!JA.matchesKeywords(signal, section.anchor)) continue;

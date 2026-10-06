@@ -10,17 +10,23 @@ const path = require("path");
 
 const APP_DIR = path.join(__dirname, "..");
 
-// What popup.html and options.html load, in order.
-const POPUP_SCRIPTS = [
-  "shared.js",
-  "ui/core.js",
-  "ui/storage.js",
-  "ui/learned.js",
-  "ui/fill-runner.js",
-  "ui/editor.js"
-];
-
 const read = (file) => fs.readFileSync(path.join(APP_DIR, file), "utf8");
+
+// What popup.html loads, in order — read FROM THE PAGE rather than repeated
+// here, so this list can never drift from what the extension actually ships
+// (adding a ui/*.js file to the popup is enough; the tests pick it up).
+const POPUP_SCRIPTS = (() => {
+  const html = read("popup.html");
+  const found = [];
+  const pattern = /<script\s+src="([^"]+)"\s*>/gi;
+  let match = pattern.exec(html);
+  while (match !== null) {
+    found.push(match[1]);
+    match = pattern.exec(html);
+  }
+  if (found.length === 0) throw new Error("popup.html lists no scripts");
+  return found;
+})();
 
 const POPUP_JS = POPUP_SCRIPTS.map(read).join("\n");
 

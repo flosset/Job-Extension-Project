@@ -14,6 +14,11 @@
   <p id="profileSummary" class="summary" role="status" aria-live="polite"></p>
 
   <form id="profileForm" autocomplete="off">
+    <div id="profileRow">
+      <label for="profileSelect">Profile</label>
+      <select id="profileSelect"></select>
+    </div>
+
     <div class="actions">
       <button type="button" id="fillBtn">⚡ Fill Application</button>
     </div>
@@ -50,6 +55,17 @@
     </div>
   </div>
 
+  <div id="coverSection" hidden>
+    <div class="sect">Cover letter</div>
+    <select id="coverTemplate" aria-label="Cover letter template"></select>
+    <p class="note" id="coverNote"></p>
+    <pre id="coverPreview" class="preview"></pre>
+    <div class="actions sub">
+      <button type="button" id="coverCopyBtn" class="ghost">📋 Copy letter</button>
+      <button type="button" id="coverTypeBtn" class="ghost">✍️ Type into form</button>
+    </div>
+  </div>
+
   <footer>Data stays in this browser (chrome.storage.local).</footer>
 
   <script src="shared.js"></script>
@@ -57,6 +73,9 @@
   <script src="ui/storage.js"></script>
   <script src="ui/learned.js"></script>
   <script src="ui/fill-runner.js"></script>
+  <script src="ui/profiles.js"></script>
+  <script src="ui/tracker.js"></script>
+  <script src="ui/cover-letter.js"></script>
   <script src="ui/editor.js"></script>
 </body>
 </html>

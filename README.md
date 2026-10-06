@@ -23,6 +23,20 @@ no telemetry, no accounts.
   those fields by hand.
 - **Alt+Shift+F** fills the page without opening the popup — handy on multi-page
   Workday forms — and the toolbar badge reports the result.
+- **Keeps an application log.** Pressing Fill on a posting records the company,
+  role, URL and date, and a page you have applied to before is **warned about
+  before you fill it again** — so a 100-application search never repeats work.
+  A status per row (applied / screen / interview / offer / rejected / withdrawn)
+  and a CSV export live on the options page.
+- **Multiple profiles.** Keep a Frontend resume and a Full-stack one (or a US and
+  a UK address) and pick one per application from the popup.
+- **Cover-letter templates** with `{company}` / `{role}` / `{firstName}` /
+  `{fullName}` / `{email}` / `{phone}` / `{city}` / `{today}` placeholders, filled
+  in from the job actually on the page. Copy the letter, or have it typed into
+  the form.
+- **Split phone fields** (a separate country code + number, as Taleo and Workday
+  render them) are filled as a pair.
+- Reaches fields inside **open Shadow DOM** (web-component widgets).
 
 ## Privacy
 
@@ -36,8 +50,14 @@ sit in their own storage key, are shown with a Save button each, and only become
 bank entries when you click.
 
 The last fill's "fields left for you" list is remembered per tab (at most five
-tabs, six hours) so it survives closing the popup. It holds field labels only,
-and `Delete all` removes it, the learned candidates and your profile together.
+tabs, six hours) so it survives closing the popup. It holds field labels only.
+
+The **application log** and the **named profiles** are user data too: the log
+holds the company, role, URL and date of each application, and each profile holds
+its own copy of everything, including its resume. `Delete all` removes the
+profile, the named profiles, the learned candidates, the remembered field lists
+and the application log in one go. Nothing is ever sent anywhere, and the tracker
+only records a page you actually pressed Fill on.
 
 
 `Export data` writes your profile (including the resume) to a JSON file — that
@@ -55,8 +75,8 @@ everything from the browser.
 
 | Screen | Purpose |
 |---|---|
-| `popup.html` | Fill, and see what's left. Deliberately tiny (340 px). |
-| `options.html` | The full width editor. **Saves automatically** as you type. |
+| `popup.html` | Fill, pick a profile, copy the cover letter, see what's left. Deliberately tiny (340 px). |
+| `options.html` | The full width editor: profile, named profiles, cover-letter templates, the application log. **Saves automatically** as you type. |
 
 A page may only write the parts of the profile it actually shows, so saving from
 one screen can never wipe a field owned by the other.
@@ -102,22 +122,30 @@ content/dates.js       month/year select pairs
 content/repeatable.js  Work Experience / Education sections
 content/radios.js      Yes/No radio groups
 content/files.js       resume auto-attach
+content/phone.js       split country-code + number pairs
+content/page-info.js   what job this page is for (company + role)
 content/learn.js       watches the fields left for you, records candidates
 content/autofill.js    orchestrator: reads the profile, fills, reports
 ```
 
-`popup.html` and `options.html` are the two screens; both load the same six UI
+`popup.html` and `options.html` are the two screens; both load the same nine UI
 scripts, in this order (top-level bindings in classic scripts are visible to
 later ones, so order matters):
 
 ```
-shared.js          the shared list + keys + the dedupe rule
-ui/core.js         constants and the null-safe DOM helpers
-ui/storage.js      profile load/save, repeatable cards, resume, export/import
-ui/learned.js      the review step for answers learned from typing
-ui/fill-runner.js  injection into every frame, result aggregation, status
-ui/editor.js       bootstrap: wires whichever controls this page owns
+shared.js            the shared list + keys + the dedupe rule
+ui/core.js           constants and the null-safe DOM helpers
+ui/storage.js        profile load/save, repeatable cards, resume, export/import
+ui/learned.js        the review step for answers learned from typing
+ui/fill-runner.js    injection into every frame, result aggregation, status
+ui/profiles.js       named profiles (the active one is mirrored into jobProfile)
+ui/tracker.js        the application log: record, warn, status, CSV
+ui/cover-letter.js   templates, placeholders, copy / type into the form
+ui/editor.js         bootstrap: wires whichever controls this page owns
 ```
+
+The UI script list is read **from `popup.html`** by the test harness, so a new
+`ui/*.js` file cannot be forgotten there either.
 
 `background.js` is the MV3 service worker: the Alt+Shift+F command and the
 toolbar badge. It renders the badge from one place, so a fresh fill result and
@@ -177,16 +205,30 @@ node e2e21.js     # optional broad host access
 node e2e22.js     # learn-from-typing + the four dedupe rules
 node e2e23.js     # Alt+Shift+F, the badge, cross-context drift guards
 node e2e24.js     # "fields left for you" survives the popup closing
+node e2e25.js     # the application tracker: page info, logging, duplicate warning
+node e2e26.js     # multiple profiles (and the v1 migration)
+node e2e27.js     # cover-letter templates and placeholders
+node e2e28.js     # split phone fields (country code + number)
+node e2e29.js     # open Shadow DOM traversal
 node matcher-test.js
 ```
+
+Every suite loads its content scripts from the **real** list in `shared.js` (via
+`tests/_popup-source.js`), so adding a content script can never leave a suite
+quietly testing a stale subset.
 
 `test-*.html` are manual fixtures for loading in a browser; they are not part of
 the published package.
 
 ## Known gaps
 
-- **Shadow DOM** (Lit / Stencil / web-component portals) is not traversed yet.
+- **Closed** shadow roots are unreachable by design (no API exists), and a page
+  that reports nothing about its job will log its URL rather than a guessed
+  company — a wrong company would fire the duplicate warning on every posting
+  from that board.
+- **Split phone fields** are only paired when both halves exist *and* sit within
+  three levels of a shared container; otherwise the single phone field keeps the
+  whole number, exactly as before.
 - **Calendar-popup date pickers** (react-datepicker-style) are not driven; a
   plain `input[type=date]` or a month/year pair is.
-- **Closed** shadow roots are unreachable by design (no API exists).
 - Workday's live DOM has not been verified against a real application locally.

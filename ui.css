@@ -359,3 +359,94 @@
     .unfilled li[title]:hover { background: #fdf3e2; border-color: #f0d8ae; }
     .unfilled li.req { font-weight: 600; color: #92400e; }
     .unfilled li.locating { background: #fde68a; border-color: #f59e0b; }
+
+    /* --- Named profiles (popup + options) --------------------------------- */
+    #profileRow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    #profileRow label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748b;
+    }
+    #profileRow select { flex: 1; min-width: 0; }
+
+    /* A row of controls that sit side by side. */
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .row select { flex: 1; min-width: 160px; }
+
+    /* --- Cover letter (popup) --------------------------------------------- */
+    #coverSection { margin-top: 14px; }
+    #coverSection select { width: 100%; }
+    .preview {
+      margin: 8px 0 0;
+      padding: 8px 10px;
+      max-height: 190px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: inherit;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #334155;
+      background: #f7f8fa;
+      border: 1px solid #e9ecf1;
+      border-radius: 7px;
+    }
+
+    /* --- Cover letter templates (options) --------------------------------- */
+    .tpl-row {
+      margin-bottom: 10px;
+      padding: 10px;
+      border: 1px solid #e9ecf1;
+      border-radius: 8px;
+      background: #fcfdff;
+    }
+    .tpl-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .tpl-name { flex: 1; min-width: 0; font-weight: 600; }
+    .tpl-body {
+      width: 100%;
+      min-height: 110px;
+      font-family: inherit;
+      font-size: 12px;
+      line-height: 1.5;
+      resize: vertical;
+    }
+
+    /* --- Application log (options) ---------------------------------------- */
+    .app-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      margin-bottom: 6px;
+      border: 1px solid #e9ecf1;
+      border-radius: 8px;
+      background: #fcfdff;
+    }
+    .app-main { flex: 1; min-width: 0; }
+    .app-title {
+      font-weight: 600;
+      color: #1f2937;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .app-meta { font-size: 11px; color: #8a909c; }
+    .app-meta a { color: #2563eb; }
+    .app-status { flex: 0 0 auto; font-size: 11px; }

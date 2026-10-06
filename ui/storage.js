@@ -17,6 +17,7 @@ async function loadProfile() {
       if (el && typeof profile[field] === "string") el.value = profile[field];
     }
     if ($("snippetRows")) renderSnippets(profile.customSnippets);
+    if ($("templateRows")) renderTemplates(profile.coverLetterTemplates);
     if ($("expRows")) renderExperiences(profile.workExperiences);
     if ($("eduRows")) renderEducations(profile.educations);
     storedResume =
@@ -51,6 +52,7 @@ function readForm() {
     if (el) profile[field] = (el.value || "").trim();
   }
   if ($("snippetRows")) profile.customSnippets = collectSnippets();
+  if ($("templateRows")) profile.coverLetterTemplates = collectTemplates();
   if ($("expRows")) profile.workExperiences = collectExperiences();
   if ($("eduRows")) profile.educations = collectEducations();
   if ($("replaceHistory")) {
@@ -85,6 +87,11 @@ function markClean() {
  */
 async function persist(profile) {
   await chrome.storage.local.set({ [STORAGE_KEY]: profile });
+  // Keep the named profile in sync: the page being edited IS the active profile,
+  // so an edit must land in the list too or the two would drift apart.
+  if (typeof syncActiveProfile === "function") {
+    await syncActiveProfile(profile);
+  }
   storedProfile = profile;
   storedResume = profile.resumeFile;
   pendingResume = null;
@@ -124,6 +131,16 @@ function flushAutoSave() {
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
   autoSave();
+}
+
+/**
+ * Throw away a pending auto-save. Switching profiles does this first: the
+ * pending write belongs to the profile being left, and firing it afterwards
+ * would overwrite the profile just switched to.
+ */
+function cancelAutoSave() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = null;
 }
 
 /** Persist the current form values to chrome.storage.local. */
@@ -484,6 +501,11 @@ function sanitizeProfile(raw) {
       .map((s) => pick(s, ["key", "value"]))
       .filter((s) => s.key && s.value);
   }
+  if (Array.isArray(source.coverLetterTemplates)) {
+    out.coverLetterTemplates = source.coverLetterTemplates
+      .map((t) => pick(t, ["name", "body"]))
+      .filter((t) => t.body);
+  }
   if (Array.isArray(source.workExperiences)) {
     out.workExperiences = source.workExperiences
       .map((e) => {
@@ -634,10 +656,16 @@ async function deleteAllData() {
     return;
   }
   try {
-    // Everything this extension stored: the profile, anything learned from
-    // typing, and the remembered "fields left for you" lists (those hold field
-    // labels, so they are user data too).
-    await chrome.storage.local.remove([STORAGE_KEY, LEARNED_KEY, RUNS_KEY]);
+    // Everything this extension stored: the profile, the named profiles (each
+    // carrying its own resume), anything learned from typing, the remembered
+    // "fields left for you" lists, and the application log.
+    await chrome.storage.local.remove([
+      STORAGE_KEY,
+      LEARNED_KEY,
+      RUNS_KEY,
+      PROFILES_KEY,
+      APPS_KEY
+    ]);
   } catch (err) {
     setStatus("Could not clear local storage.", "warn");
     return;

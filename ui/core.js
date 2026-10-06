@@ -10,6 +10,8 @@
 const STORAGE_KEY = JOB_AUTOFILL_SHARED.keys.profile;
 const LEARNED_KEY = JOB_AUTOFILL_SHARED.keys.learned;
 const RUNS_KEY = JOB_AUTOFILL_SHARED.keys.runs;
+const PROFILES_KEY = JOB_AUTOFILL_SHARED.keys.profiles;
+const APPS_KEY = JOB_AUTOFILL_SHARED.keys.applications;
 
 // The injected content scripts, in load order. They share the
 // window.__JobAutofill namespace inside the page's isolated world, so the
@@ -23,6 +25,8 @@ const PROFILE_FIELDS = [
   "fullName",
   "email",
   "phone",
+  "phoneCountry",
+  "phoneNational",
   "linkedin",
   "github",
   "portfolio",
