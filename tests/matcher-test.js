@@ -1,69 +1,117 @@
-// Standalone sanity test for the self-identification option matcher.
-// Mirrors normalize/expandValueTokens/findOptionForValue from autofill.js.
+// matcher-test.js — self-identification option matcher, run against the REAL
+// source files.
+//
+// This test used to duplicate normalize/expandValueTokens/findOptionForValue in
+// a local copy "mirroring autofill.js". That copy silently drifted out of date
+// (it still listed the veteran sub-category synonyms removed in v1.11.0), so it
+// validated nothing. It now loads the shipped files like the e2e suites do.
 "use strict";
+const fs = require("fs");
+const path = require("path");
+const { JSDOM, VirtualConsole } = require("jsdom");
 
-function normalize(text) {
-  return (text || "").toLowerCase().replace(/[_\-\.]+/g, " ").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
-}
-function escapeRegExp(t) { return t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+const APP = "g:\\Programming\\Job Extension Project";
+const SOURCE = [
+  "content/field-map.js",
+  "content/dom-utils.js",
+  "content/combobox.js",
+  "content/fill.js",
+  "content/dates.js",
+  "content/repeatable.js",
+  "content/radios.js",
+  "content/files.js",
+  "content/autofill.js"
+]
+  .map((f) => fs.readFileSync(path.join(APP, f), "utf8"))
+  .join("\n");
 
-const VALUE_SYNONYMS = {
-  male: ["man"], female: ["woman"],
-  "non binary": ["nonbinary", "genderqueer", "gender diverse", "gender variant"],
-  "american indian or alaska native": ["american indian", "alaska native", "native american"],
-  asian: ["asian"], "black or african american": ["black", "african american"],
-  "hispanic or latino": ["hispanic", "latino", "latina", "latinx"],
-  "native hawaiian or other pacific islander": ["native hawaiian", "pacific islander"],
-  white: ["caucasian"], "two or more races": ["two or more", "multiracial", "mixed", "more than one race"],
-  "i am a protected veteran": ["am a protected veteran", "active duty", "currently serve", "reserve", "national guard"],
-  "i am not a protected veteran": ["am not a protected veteran", "not protected"],
-  "yes i have a disability": ["yes", "have a disability"],
-  "no i do not have a disability": ["no", "do not have a disability", "don t have a disability"],
-  "prefer not to say": ["prefer not", "decline", "do not wish", "don t wish", "not to disclose", "do not want", "no answer", "choose not", "wish to answer"]
+const vc = new VirtualConsole();
+const dom = new JSDOM("<!doctype html><html><body></body></html>", {
+  runScripts: "dangerously",
+  pretendToBeVisual: true,
+  virtualConsole: vc
+});
+const { window } = dom;
+const document = window.document;
+window.Element.prototype.getClientRects = () => [{ width: 10, height: 10 }];
+window.chrome = {
+  storage: { local: { get: async () => ({}) } },
+  runtime: { sendMessage: () => {} }
 };
+window.eval(SOURCE);
+const JA = window.__JobAutofill;
 
-function expandValueTokens(value) {
-  const primary = normalize(value);
-  return [primary].concat((VALUE_SYNONYMS[primary] || []).filter(Boolean));
+/** Build a real <select> from option labels ("text" or ["text", "value"]). */
+function makeSelect(labels) {
+  const sel = document.createElement("select");
+  const ph = document.createElement("option");
+  ph.value = "";
+  ph.textContent = "Select...";
+  sel.appendChild(ph);
+  labels.forEach((label) => {
+    const option = document.createElement("option");
+    if (Array.isArray(label)) {
+      option.textContent = label[0];
+      option.value = label[1];
+    } else {
+      option.textContent = label;
+      option.value = label;
+    }
+    sel.appendChild(option);
+  });
+  document.body.appendChild(sel);
+  return sel;
 }
 
-function findOptionForValue(options, value) {
-  const tokens = expandValueTokens(value);
-  const opts = options.filter((o) => (o.value || "").trim() !== "");
-  for (const token of tokens) {
-    for (const o of opts) {
-      if (normalize(o.text) === token || normalize(o.value) === token) return o;
-    }
-  }
-  for (const token of tokens) {
-    const re = new RegExp("(^| )" + escapeRegExp(token) + "( |$)");
-    for (const o of opts) {
-      if (re.test(normalize(o.text)) || re.test(normalize(o.value))) return o;
-    }
-  }
-  return null;
+/** Run the shipped matcher against a fresh <select>; return the chosen text. */
+function pick(labels, value) {
+  const option = JA.findOptionForValue(makeSelect(labels), value);
+  return option ? option.textContent : "(none)";
 }
 
-const opt = (text, value = text) => ({ text, value });
-let pass = 0, fail = 0;
+let pass = 0;
+let fail = 0;
 function check(name, got, expected) {
-  const actual = got ? got.text : "(none)";
-  const ok = actual === expected;
-  if (ok) pass++; else fail++;
-  console.log((ok ? "PASS" : "FAIL") + "  " + name + " -> " + actual + (ok ? "" : "  [expected " + expected + "]"));
+  const ok = got === expected;
+  ok ? pass++ : fail++;
+  console.log(
+    (ok ? "PASS" : "FAIL") + "  " + name + " -> " + got +
+      (ok ? "" : "  [expected " + expected + "]")
+  );
 }
 
-check("Male -> Man", findOptionForValue([opt("Man"), opt("Woman"), opt("Non-binary"), opt("Decline to self-identify")], "Male"), "Man");
-check("Male -> Male", findOptionForValue([opt("Female"), opt("Male"), opt("")], "Male"), "Male");
-check("Female -> Woman", findOptionForValue([opt("Man"), opt("Woman")], "Female"), "Woman");
-check("Female not Male", findOptionForValue([opt("Male"), opt("Female")], "Female"), "Female");
-check("protected veteran exact", findOptionForValue([opt("I am a protected veteran"), opt("I am not a protected veteran"), opt("I prefer not to answer")], "I am a protected veteran"), "I am a protected veteran");
-check("NOT protected veteran", findOptionForValue([opt("I am a protected veteran"), opt("I am not a protected veteran"), opt("I prefer not to answer")], "I am not a protected veteran"), "I am not a protected veteran");
-check("disability No", findOptionForValue([opt("Yes"), opt("No"), opt("I don't wish to answer")], "No, I do not have a disability"), "No");
-check("disability Yes", findOptionForValue([opt("Yes"), opt("No"), opt("I don't wish to answer")], "Yes, I have a disability"), "Yes");
-check("White (long)", findOptionForValue([opt("White (Not Hispanic or Latino)"), opt("Black or African American")], "White"), "White (Not Hispanic or Latino)");
-check("prefer-not-to-say -> decline", findOptionForValue([opt("Decline to self-identify"), opt("Male"), opt("Female")], "Prefer not to say"), "Decline to self-identify");
-check("Male has no match", findOptionForValue([opt("Female"), opt("Other")], "Male"), "(none)");
+check("Male -> Man", pick(["Man", "Woman", "Non-binary", "Decline to self-identify"], "Male"), "Man");
+check("Male -> Male", pick(["Female", "Male", ""], "Male"), "Male");
+check("Female -> Woman", pick(["Man", "Woman"], "Female"), "Woman");
+check("Female not Male", pick(["Male", "Female"], "Female"), "Female");
+check("White (long)", pick(["White (Not Hispanic or Latino)", "Black or African American"], "White"), "White (Not Hispanic or Latino)");
+check("prefer-not-to-say -> decline", pick(["Decline to self-identify", "Male", "Female"], "Prefer not to say"), "Decline to self-identify");
+check("Male has no match", pick(["Female", "Other"], "Male"), "(none)");
+
+// Veteran: the sub-categories are NOT the protected-veteran answer, and a
+// sub-category-only list must be left blank (regression guard for v1.11.0).
+check(
+  "protected veteran exact",
+  pick(["I am a protected veteran", "I am not a protected veteran", "I prefer not to answer"], "I am a protected veteran"),
+  "I am a protected veteran"
+);
+check(
+  "NOT protected veteran",
+  pick(["I am a protected veteran", "I am not a protected veteran", "I prefer not to answer"], "I am not a protected veteran"),
+  "I am not a protected veteran"
+);
+check(
+  "sub-categories only -> blank",
+  pick(["Disabled veteran", "Active duty wartime or campaign badge veteran"], "I am a protected veteran"),
+  "(none)"
+);
+
+check("disability No", pick(["Yes", "No", "I don't wish to answer"], "No, I do not have a disability"), "No");
+check("disability Yes", pick(["Yes", "No", "I don't wish to answer"], "Yes, I have a disability"), "Yes");
+
+// State abbreviation <-> full name.
+check("TX -> Texas", pick(["Texas", "California"], "TX"), "Texas");
+check("Texas -> TX", pick([["Texas", "TX"], "California"], "Texas"), "Texas");
 
 console.log("\n" + (fail === 0 ? "ALL OPTION TESTS PASS" : fail + " TEST(S) FAILED") + " (" + pass + " passed)");
 process.exit(fail === 0 ? 0 : 1);
