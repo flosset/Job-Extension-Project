@@ -95,13 +95,19 @@ is label-driven, so no per-domain adapters are needed.
 ## Tests
 
 The suite runs in Node with jsdom, loading the **real** source files and the
-**real** HTML pages with `chrome.*` stubbed. It lives outside this folder
-(`%TEMP%\ja-test`).
+**real** HTML pages with `chrome.*` stubbed. It lives in `tests/`.
 
-**Fastest — every suite in parallel (~12 s):**
+**Setup (once):**
 
 ```
-powershell -NoProfile -File "$env:TEMP\ja-test\run-all.ps1"
+cd tests
+npm install
+```
+
+**Fastest — every suite in parallel (~9 s):**
+
+```
+powershell -NoProfile -File tests\run-all.ps1
 ```
 
 Each suite is an independent process and is judged by its own printed verdict
@@ -110,6 +116,7 @@ Each suite is an independent process and is judged by its own printed verdict
 **Or a single suite:**
 
 ```
+cd tests
 node e2e2.js      # main fill pass
 node e2e7.js      # answer bank + unfilled report
 node e2e11.js     # Work Experience sections
@@ -121,7 +128,8 @@ node e2e16.js     # destructive-trim gating + dialog scoping
 node e2e17.js     # export / import / delete-all
 node e2e18.js     # popup vs options split
 node e2e19.js     # "fields left for you"
-node jobautofill-matcher-test.js
+node e2e20.js     # answer-bank scope, loose selectors, full name
+node matcher-test.js
 ```
 
 `test-*.html` are manual fixtures for loading in a browser; they are not part of

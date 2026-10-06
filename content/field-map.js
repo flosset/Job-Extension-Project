@@ -10,17 +10,23 @@
   JA.ATTRIBUTE_SELECTORS = {
     firstName: [
       'input[autocomplete="given-name" i]',
-      'input[name*="first" i]',
-      'input[id*="first" i]',
-      'input[name*="given" i]',
+      'input[name="first" i]',
+      'input[id="first" i]',
+      'input[name="first_name" i]',
+      'input[name="firstname" i]',
+      'input[name="given_name" i]',
+      'input[name="fname" i]',
       'input[placeholder*="first" i]'
     ],
     lastName: [
       'input[autocomplete="family-name" i]',
-      'input[name*="last" i]',
-      'input[id*="last" i]',
-      'input[name*="family" i]',
-      'input[name*="surname" i]',
+      'input[name="last" i]',
+      'input[id="last" i]',
+      'input[name="last_name" i]',
+      'input[name="lastname" i]',
+      'input[name="family_name" i]',
+      'input[name="surname" i]',
+      'input[name="lname" i]',
       'input[placeholder*="last" i]'
     ],
     email: [
@@ -36,7 +42,8 @@
       'input[name*="phone" i]',
       'input[id*="phone" i]',
       'input[name*="mobile" i]',
-      'input[name*="tel" i]'
+      'input[name="tel" i]',
+      'input[id="tel" i]'
     ],
     linkedin: [
       'input[name*="linkedin" i]',
@@ -53,7 +60,7 @@
       'input[id*="portfolio" i]',
       'input[name*="website" i]',
       'input[id*="website" i]',
-      'input[name*="personal" i]',
+      'input[name="personal_site" i]',
       'input[placeholder*="portfolio" i]',
       'input[placeholder*="website" i]'
     ],
@@ -88,8 +95,10 @@
     ],
     state: [
       'input[autocomplete="address-level1" i]',
-      'input[name*="state" i]',
-      'input[id*="state" i]',
+      'input[name="state" i]',
+      'input[id="state" i]',
+      'input[name="state_province" i]',
+      'input[name="address_state" i]',
       'input[name*="province" i]',
       'input[name*="region" i]'
     ],
@@ -174,6 +183,20 @@
       'input[name*="work_location" i]',
       'input[name*="desired_location" i]',
       'input[id*="preferredlocation" i]'
+    ],
+    // Single-field "Full Name" (Lever and many smaller boards). Kept last so a
+    // dedicated First/Last field always wins; the value is derived from
+    // first + last at fill time unless the profile sets an explicit override.
+    // Only exact/anchored selectors here — a loose name*="name" would match
+    // "firstName", "lastName" and "company name".
+    fullName: [
+      'input[autocomplete="name" i]',
+      'input[name="name" i]',
+      'input[id="name" i]',
+      'input[name*="fullname" i]',
+      'input[id*="fullname" i]',
+      'input[name*="full_name" i]',
+      'input[placeholder*="full name" i]'
     ]
   };
 
@@ -228,7 +251,7 @@
     firstName: ["first name", "given name", "fname", "firstname"],
     lastName: ["last name", "family name", "surname", "lname", "lastname"],
     email: ["email", "e mail"],
-    phone: ["phone", "mobile", "telephone", "cell phone", "contact number"],
+    phone: ["phone", "mobile", "telephone", "cell phone", "contact number", "tel"],
     linkedin: ["linkedin", "linked in"],
     github: ["github", "git hub"],
     portfolio: ["portfolio", "website", "personal website", "web site", "personal site"],
@@ -308,7 +331,11 @@
       "work location",
       "desired location",
       "location preference"
-    ]
+    ],
+    // Deliberately NOT a bare "name" keyword — that would match the signal of
+    // every "First Name" / "Company Name" field. Attribute selectors above
+    // carry the single-field "Full Name" case.
+    fullName: ["full name", "fullname", "legal name"]
   };
 
   // Radio-button groups — the tedious Yes/No questions ("legally authorized to

@@ -417,6 +417,14 @@
       return;
     }
 
+    // Some portals (Lever and many smaller boards) use one "Full Name" field.
+    // Derive it from first + last unless the profile sets an explicit override.
+    if (!profile.fullName && (profile.firstName || profile.lastName)) {
+      profile.fullName = [profile.firstName, profile.lastName]
+        .filter(Boolean)
+        .join(" ");
+    }
+
     // Run the fill; if nothing matched, the form may still be hydrating (React
     // SPAs such as Greenhouse/Workday render late), so watch the DOM briefly
     // and retry before reporting.

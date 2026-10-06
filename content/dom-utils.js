@@ -77,11 +77,25 @@
     return bits.filter(Boolean).join(" ");
   };
 
+  // Compiled keyword patterns, cached so a large form does not rebuild the
+  // same RegExp for every candidate field inside nested loops.
+  const keywordPatterns = new Map();
+
+  function keywordPattern(keyword) {
+    let pattern = keywordPatterns.get(keyword);
+    if (!pattern) {
+      pattern = new RegExp("(^| )" + keyword + "( |$)");
+      keywordPatterns.set(keyword, pattern);
+    }
+    return pattern;
+  }
+
   /** Does any keyword appear as a whole word in the normalised signal? */
   JA.matchesKeywords = function (signal, keywords) {
-    return keywords.some((keyword) =>
-      new RegExp("(^| )" + keyword + "( |$)").test(signal)
-    );
+    for (const keyword of keywords) {
+      if (keywordPattern(keyword).test(signal)) return true;
+    }
+    return false;
   };
 
   /** A field is usable only if it is visible and not disabled/read-only. */
@@ -226,21 +240,43 @@
     return [primary].concat(synonyms.filter(Boolean));
   };
 
+  // Words too generic to identify a field on their own.
+  JA.SNIPPET_STOPWORDS = new Set([
+    "the", "and", "you", "your", "yours", "why", "for", "with", "have", "has",
+    "had", "does", "did", "are", "was", "were", "will", "would", "can",
+    "could", "should", "this", "that", "these", "those", "what", "when",
+    "where", "which", "while", "how", "much", "many", "about", "from", "into",
+    "over", "under", "than", "then", "them", "they", "their", "our", "ours",
+    "its", "of", "to", "in", "on", "at", "is", "be", "been", "being", "do",
+    "please", "tell", "us", "me", "my", "work", "here", "years", "year"
+  ]);
+
   /**
-   * Match keywords for a user answer-bank key: the whole normalised phrase plus
-   * its significant words, so "Desired Salary" also matches a field labelled
-   * just "Salary".
+   * Match keywords for a user answer-bank key.
+   *
+   * Always includes the whole normalised phrase. Individual words are only
+   * emitted for SHORT keys (1–2 words), because a long key's words are too
+   * generic on their own: "Why do you want to work here" would otherwise
+   * contribute "work", which then matches an unrelated "Work authorization"
+   * or "Work experience" field — exactly the wrong-answer failure the rest of
+   * the engine works to prevent. A long, specific key must match as a phrase.
    */
   JA.snippetKeywords = function (rawKey) {
     const normalized = JA.normalize(rawKey);
     if (!normalized) return [];
+    const words = normalized.split(" ").filter(Boolean);
     const out = [normalized];
-    normalized
-      .split(" ")
-      .filter((word) => word.length >= 4)
-      .forEach((word) => {
-        if (out.indexOf(word) === -1) out.push(word);
+    if (words.length <= 2) {
+      words.forEach((word) => {
+        if (
+          word.length >= 4 &&
+          !JA.SNIPPET_STOPWORDS.has(word) &&
+          out.indexOf(word) === -1
+        ) {
+          out.push(word);
+        }
       });
+    }
     return out;
   };
 

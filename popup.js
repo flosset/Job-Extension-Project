@@ -27,6 +27,7 @@ const CONTENT_SCRIPTS = [
 const PROFILE_FIELDS = [
   "firstName",
   "lastName",
+  "fullName",
   "email",
   "phone",
   "linkedin",
