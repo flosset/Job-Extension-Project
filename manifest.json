@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Private Job Autofill",
-  "version": "1.18.0",
+  "version": "1.19.0",
   "description": "Privacy-first, zero-lag job application autofill. 100% local storage. No tracking, no telemetry, no external requests.",
   "permissions": ["storage", "unlimitedStorage", "activeTab", "scripting"],
   "host_permissions": [
@@ -26,6 +26,7 @@
     "*://*.applicantstack.com/*",
     "*://*.recruiterbox.com/*"
   ],
+  "optional_host_permissions": ["*://*/*"],
   "action": {
     "default_popup": "popup.html",
     "default_title": "Private Job Autofill"

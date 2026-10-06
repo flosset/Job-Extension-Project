@@ -386,6 +386,20 @@
   }
 
   /**
+   * Count iframes in THIS frame (only meaningful in the top frame). Reported so
+   * the popup can tell the difference between "nothing matched" and "part of
+   * this page is in a frame we were not allowed to reach".
+   */
+  function iframeCount() {
+    try {
+      if (window.top !== window) return 0;
+      return document.querySelectorAll("iframe").length;
+    } catch (err) {
+      return 0; // cross-origin window access — this frame is not the top one
+    }
+  }
+
+  /**
    * Watch the DOM for up to `timeoutMs` for late-hydrated fields (React SPAs
    * such as Greenhouse/Workday often render the form after script injection)
    * and retry the fill as soon as something matching appears.
@@ -517,10 +531,12 @@
 
     const unfilled = collectUnfilled(used).concat(revealed).slice(0, 40);
     const scanned = scanCount();
+    const iframes = iframeCount();
     console.log(
       "[JobAutofill] frame:", location.href,
       "| form fields:", scanned,
       "| filled:", filled,
+      "| iframes:", iframes,
       "| resume attached:", attached,
       "| existing attachment kept:", kept,
       "| history blocks removed:", removed,
@@ -541,7 +557,8 @@
       flagged,
       unfilled,
       frame: location.href,
-      scanned
+      scanned,
+      iframes
     });
   }
 

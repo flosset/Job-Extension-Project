@@ -28,6 +28,15 @@
     <button type="button" id="editProfileBtn" class="ghost">Edit full profile…</button>
   </div>
 
+  <div id="grantRow" hidden>
+    <button type="button" id="grantBtn" class="ghost">Allow filling on any site</button>
+    <p class="note">
+      Part of this application is in a frame this extension cannot reach.
+      Allowing access lets it fill that frame. Optional — it is only ever used
+      when you press Fill, and nothing is sent anywhere.
+    </p>
+  </div>
+
   <p id="status" role="status" aria-live="polite"></p>
   <ul id="unfilledList" class="unfilled" aria-live="polite"></ul>
 

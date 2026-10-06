@@ -75,6 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
   on("saveBtn", "click", saveProfile);
   on("fillBtn", "click", fillActiveTab);
   on("editProfileBtn", "click", openOptionsPage);
+  on("grantBtn", "click", requestAnySiteAccess);
   on("exportBtn", "click", exportProfile);
   on("importBtn", "click", () => {
     const input = $("importFile");
@@ -781,7 +782,7 @@ const aggregate = {
       filled: 0, attached: 0, kept: 0, zones: 0, acknowledged: 0,
       removed: 0, surplus: 0,
       flagged: 0, unfilled: [],
-      frames: 0, contributingFrames: 0,
+      frames: 0, contributingFrames: 0, iframes: 0,
       sawEmpty: false, sawError: false, sawBusy: false, scanned: 0
     };
     const list = $("unfilledList");
@@ -800,6 +801,10 @@ const aggregate = {
     if (!this.active || !this.results) return;
     this.results.frames++;
     this.results.scanned += Number(message.scanned) || 0;
+    this.results.iframes = Math.max(
+      this.results.iframes,
+      Number(message.iframes) || 0
+    );
 
     if (message.status === "empty") {
       this.results.sawEmpty = true;
@@ -921,6 +926,15 @@ const aggregate = {
       );
     }
 
+    // Part of the page may be in a frame we were not allowed to reach — an
+    // embedded ATS whose domain is not in our pre-listed hosts. Offer the
+    // optional broad-access permission instead of failing silently.
+    const unreachable = r.iframes > 0 && r.frames < 1 + r.iframes;
+    if (unreachable && r.filled === 0) {
+      notes.push("Part of this page is in a frame I could not reach.");
+    }
+    showGrantRow(unreachable);
+
     if (notes.length > 0) {
       const status = $("status");
       if (status) status.textContent += " " + notes.join(" ");
@@ -1037,6 +1051,54 @@ function setStatus(text, kind) {
   if (!el) return;
   el.textContent = text;
   el.className = kind || "";
+}
+
+/** Origin pattern for the optional "fill anywhere" permission. */
+const ANY_SITE_ORIGINS = ["*://*/*"];
+
+/**
+ * Offer the optional broad host access when part of the page is in a frame we
+ * could not reach (an embedded ATS whose domain is not pre-listed). Purely
+ * opt-in: nothing is requested until the user clicks, and the extension still
+ * does nothing until Fill is pressed.
+ */
+async function showGrantRow(want) {
+  const row = $("grantRow");
+  if (!row) return;
+  if (!want || !chrome.permissions) {
+    row.hidden = true;
+    return;
+  }
+  try {
+    const already = await chrome.permissions.contains({
+      origins: ANY_SITE_ORIGINS
+    });
+    if (already) {
+      row.hidden = true;
+      return;
+    }
+  } catch (err) {
+    /* permissions API unavailable — still offer the button */
+  }
+  row.hidden = false;
+}
+
+/** Ask for broad host access, then tell the user to press Fill again. */
+async function requestAnySiteAccess() {
+  try {
+    const granted = await chrome.permissions.request({
+      origins: ANY_SITE_ORIGINS
+    });
+    if (granted) {
+      const row = $("grantRow");
+      if (row) row.hidden = true;
+      setStatus("✅ Access granted — press Fill again to fill the embedded frame.", "ok");
+    } else {
+      setStatus("Access not granted — the embedded frame will stay unfilled.", "warn");
+    }
+  } catch (err) {
+    setStatus("⚠️ Could not request permission on this page.", "error");
+  }
 }
 
 /** List the fields we could not fill, so the user knows what is left. */

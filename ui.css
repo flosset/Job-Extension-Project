@@ -101,6 +101,12 @@
       line-height: 1.35;
     }
 
+    .hint {
+      font-size: 10px;
+      color: #8a909c;
+      font-weight: 400;
+    }
+
     code {
       background: #eef1f5;
       padding: 0 4px;
