@@ -1,0 +1,8 @@
+# Dependencies for the test suite (run `npm install` inside tests/).
+node_modules/
+
+# Test run artifacts.
+tests/.last-run/
+
+# Release build output (regenerate with the package script).
+dist/

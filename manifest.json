@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Private Job Autofill",
+  "version": "1.17.0",
+  "description": "Privacy-first, zero-lag job application autofill. 100% local storage. No tracking, no telemetry, no external requests.",
+  "permissions": ["storage", "unlimitedStorage", "activeTab", "scripting"],
+  "host_permissions": [
+    "*://*.greenhouse.io/*",
+    "*://*.lever.co/*",
+    "*://*.myworkdayjobs.com/*",
+    "*://*.workday.com/*",
+    "*://*.icims.com/*",
+    "*://*.smartrecruiters.com/*",
+    "*://*.taleo.net/*",
+    "*://*.successfactors.com/*",
+    "*://*.sapsf.com/*",
+    "*://*.workable.com/*",
+    "*://*.jobvite.com/*",
+    "*://*.ashbyhq.com/*",
+    "*://*.recruitee.com/*",
+    "*://*.bamboohr.com/*",
+    "*://*.breezy.hr/*",
+    "*://*.jazzhr.com/*",
+    "*://*.ultipro.com/*",
+    "*://*.personio.com/*",
+    "*://*.applicantstack.com/*",
+    "*://*.recruiterbox.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Private Job Autofill"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
+}
+

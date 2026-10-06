@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Private Job Autofill — Profile</title>
+  <link rel="stylesheet" href="ui.css" />
+  <style>
+    /* Full-page overrides; ui.css is sized for the 340px popup. */
+    body[data-page="options"] {
+      width: auto;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 24px 28px 48px;
+      font-size: 13px;
+    }
+    body[data-page="options"] h1 { font-size: 18px; }
+    body[data-page="options"] header {
+      margin-bottom: 14px;
+      align-items: flex-start;
+    }
+    body[data-page="options"] header .sub {
+      margin: 3px 0 0;
+      font-size: 12px;
+      color: #8a909c;
+      line-height: 1.45;
+    }
+    body[data-page="options"] .grid {
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 12px;
+    }
+    body[data-page="options"] .sect { font-size: 11px; }
+    body[data-page="options"] .actions { max-width: 460px; margin-top: 18px; }
+    body[data-page="options"] .summary { font-size: 12px; }
+    body[data-page="options"] .exp-grid {
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    }
+    body[data-page="options"] .exp-card { padding: 10px; }
+  </style>
+</head>
+<body data-page="options">
+  <header>
+    <div>
+      <h1>Profile &amp; Settings</h1>
+      <p class="sub">
+        Saved in this browser only, and saved automatically as you type.
+        Press <strong>Save Now</strong> if you want to be certain.
+      </p>
+    </div>
+    <span class="badge">🔒 Local only</span>
+  </header>
+
+  <p id="profileSummary" class="summary" role="status" aria-live="polite"></p>
+
+  <form id="profileForm" autocomplete="off">
+    <div class="grid">
+      <div class="field">
+        <label for="firstName">First Name</label>
+        <input type="text" id="firstName" name="firstName" placeholder="Jane" />
+      </div>
+
+      <div class="field">
+        <label for="lastName">Last Name</label>
+        <input type="text" id="lastName" name="lastName" placeholder="Doe" />
+      </div>
+
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="jane@example.com" />
+      </div>
+
+      <div class="field">
+        <label for="phone">Phone</label>
+        <input type="tel" id="phone" name="phone" placeholder="+1 555 123 4567" />
+      </div>
+
+      <div class="field">
+        <label for="linkedin">LinkedIn URL</label>
+        <input type="url" id="linkedin" name="linkedin" placeholder="https://linkedin.com/in/janedoe" />
+      </div>
+
+      <div class="field">
+        <label for="github">GitHub URL</label>
+        <input type="url" id="github" name="github" placeholder="https://github.com/janedoe" />
+      </div>
+
+      <div class="field full">
+        <label for="portfolio">Portfolio URL</label>
+        <input type="url" id="portfolio" name="portfolio" placeholder="https://janedoe.dev" />
+      </div>
+
+      <div class="field full">
+        <label for="resume">Resume Snippet / Bio</label>
+        <textarea id="resume" name="resume" placeholder="Short professional summary or biography to paste into 'About you' blocks…"></textarea>
+      </div>
+      <div class="sect">Professional Details</div>
+
+      <div class="field">
+        <label for="currentCompany">Current Company</label>
+        <input type="text" id="currentCompany" name="currentCompany" placeholder="Acme Corp" />
+      </div>
+      <div class="field">
+        <label for="currentTitle">Current Title</label>
+        <input type="text" id="currentTitle" name="currentTitle" placeholder="Software Engineer" />
+      </div>
+
+      <div class="field">
+        <label for="school">School</label>
+        <input type="text" id="school" name="school" placeholder="State University" />
+      </div>
+      <div class="field">
+        <label for="degree">Degree</label>
+        <input type="text" id="degree" name="degree" placeholder="BS" />
+      </div>
+
+      <div class="field">
+        <label for="major">Major</label>
+        <input type="text" id="major" name="major" placeholder="Computer Science" />
+      </div>
+      <div class="field">
+        <label for="graduationDate">Graduation Date</label>
+        <input type="text" id="graduationDate" name="graduationDate" placeholder="May 2026" />
+      </div>
+
+      <div class="field">
+        <label for="yearsExperience">Years of Experience</label>
+        <input type="text" id="yearsExperience" name="yearsExperience" placeholder="5" />
+      </div>
+      <div class="field">
+        <label for="noticePeriod">Notice Period</label>
+        <input type="text" id="noticePeriod" name="noticePeriod" placeholder="2 weeks" />
+      </div>
+
+      <div class="field">
+        <label for="desiredSalary">Desired Salary</label>
+        <input type="text" id="desiredSalary" name="desiredSalary" placeholder="$120,000" />
+      </div>
+      <div class="field">
+        <label for="startDate">Earliest Start Date</label>
+        <input type="text" id="startDate" name="startDate" placeholder="07/15/2026" />
+      </div>
+
+      <div class="field full">
+        <label for="preferredLocation">Preferred Work Location</label>
+        <input type="text" id="preferredLocation" name="preferredLocation" placeholder="Remote / Austin, TX" />
+      </div>
+      <div class="sect">Address</div>
+
+      <div class="field full">
+        <label for="address">Street Address</label>
+        <input type="text" id="address" name="address" placeholder="1 Main St" />
+      </div>
+
+      <div class="field">
+        <label for="city">City</label>
+        <input type="text" id="city" name="city" placeholder="Austin" />
+      </div>
+      <div class="field">
+        <label for="state">State / Province</label>
+        <input type="text" id="state" name="state" placeholder="TX" />
+      </div>
+
+      <div class="field">
+        <label for="zip">ZIP / Postal Code</label>
+        <input type="text" id="zip" name="zip" placeholder="78701" />
+      </div>
+      <div class="field">
+        <label for="country">Country</label>
+        <input type="text" id="country" name="country" placeholder="United States" />
+      </div>
+      <div class="sect">Work Experience</div>
+
+      <div class="field full">
+        <p class="note">Replaces Workday's auto-parsed entries with yours. Dates as <code>MM/YYYY</code>.</p>
+        <div id="expRows"></div>
+        <button type="button" id="addExpBtn" class="snip-add">＋ Add experience</button>
+      </div>
+      <div class="sect">Education</div>
+
+      <div class="field full">
+        <p class="note">Also replaces Workday's parsed education. Years as <code>YYYY</code>.</p>
+        <div id="eduRows"></div>
+        <button type="button" id="addEduBtn" class="snip-add">＋ Add education</button>
+      </div>
+      <div class="sect">Resume File (auto-attach)</div>
+
+      <div class="field full">
+        <input type="file" id="resumeFile" accept=".pdf,.doc,.docx,.rtf,.txt" />
+        <p id="resumeFileInfo" class="note">No resume stored.</p>
+        <button type="button" id="clearResumeBtn" class="snip-add">Clear stored resume</button>
+      </div>
+      <div class="sect">Work Authorization</div>
+
+      <div class="field">
+        <label for="workAuthorized">Legally authorized to work?</label>
+        <select id="workAuthorized" name="workAuthorized">
+          <option value="">— Not set —</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="sponsorship">Require visa sponsorship?</label>
+        <select id="sponsorship" name="sponsorship">
+          <option value="">— Not set —</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+      </div>
+      <div class="sect">Self-Identification (optional)</div>
+
+      <div class="field">
+        <label for="gender">Gender</label>
+        <select id="gender" name="gender">
+          <option value="">— Not set —</option>
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+          <option value="Non-binary">Non-binary</option>
+          <option value="Prefer not to say">Prefer not to say</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="race">Race / Ethnicity</label>
+        <select id="race" name="race">
+          <option value="">— Not set —</option>
+          <option value="American Indian or Alaska Native">American Indian or Alaska Native</option>
+          <option value="Asian">Asian</option>
+          <option value="Black or African American">Black or African American</option>
+          <option value="Hispanic or Latino">Hispanic or Latino</option>
+          <option value="Native Hawaiian or Other Pacific Islander">Native Hawaiian or Other Pacific Islander</option>
+          <option value="White">White</option>
+          <option value="Two or More Races">Two or More Races</option>
+          <option value="Prefer not to say">Prefer not to say</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="veteran">Veteran Status</label>
+        <select id="veteran" name="veteran">
+          <option value="">— Not set —</option>
+          <option value="I am a protected veteran">I am a protected veteran</option>
+          <option value="I am not a protected veteran">I am not a protected veteran</option>
+          <option value="Prefer not to say">Prefer not to say</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="disability">Disability Status</label>
+        <select id="disability" name="disability">
+          <option value="">— Not set —</option>
+          <option value="Yes, I have a disability">Yes, I have a disability</option>
+          <option value="No, I do not have a disability">No, I do not have a disability</option>
+          <option value="Prefer not to say">Prefer not to say</option>
+        </select>
+      </div>
+      <div class="sect">Answer Bank &amp; Snippets (optional)</div>
+
+      <div class="field full">
+        <p class="note">Match leftover questions by keyword. Short answers (<code>salary</code> → <code>$120,000</code>) or long ones — paste the whole paragraph and it fills matching textareas.</p>
+        <div id="snippetRows"></div>
+        <button type="button" id="addSnippetBtn" class="snip-add">＋ Add answer</button>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" id="saveBtn">Save Now</button>
+      <span id="dirtyBadge" class="dirty" hidden>&#9679; Unsaved changes</span>
+    </div>
+
+    <label class="danger-opt" for="replaceHistory">
+      <input type="checkbox" id="replaceHistory" />
+      <span>Also remove leftover work/education blocks on the page (destructive)</span>
+    </label>
+  </form>
+
+  <p id="status" role="status" aria-live="polite"></p>
+
+  <div class="data-bar">
+    <button type="button" id="exportBtn" class="ghost">Export data</button>
+    <button type="button" id="importBtn" class="ghost">Import data</button>
+    <button type="button" id="deleteAllBtn" class="ghost danger">Delete all</button>
+    <input type="file" id="importFile" accept="application/json,.json" hidden />
+  </div>
+  <p class="note">Export contains your personal details — store the file somewhere safe.</p>
+
+  <footer>Data stays in this browser (chrome.storage.local).</footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Private Job Autofill</title>
+    <link rel="stylesheet" href="ui.css" />
+</head>
+<body>
+  <header>
+    <h1>Private Job Autofill</h1>
+    <span class="badge">🔒 Local only</span>
+  </header>
+  <p id="profileSummary" class="summary" role="status" aria-live="polite"></p>
+
+  <form id="profileForm" autocomplete="off">
+    <div class="actions">
+      <button type="button" id="fillBtn">⚡ Fill Application</button>
+    </div>
+
+    <label class="danger-opt" for="replaceHistory">
+      <input type="checkbox" id="replaceHistory" />
+      <span>Also remove leftover work/education blocks on the page (destructive)</span>
+    </label>
+  </form>
+
+  <div class="actions sub">
+    <button type="button" id="editProfileBtn" class="ghost">Edit full profile…</button>
+  </div>
+
+  <p id="status" role="status" aria-live="polite"></p>
+  <ul id="unfilledList" class="unfilled" aria-live="polite"></ul>
+
+  <footer>Data stays in this browser (chrome.storage.local).</footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

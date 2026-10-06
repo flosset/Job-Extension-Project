@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Autofill Test Form (mock Workday/React portal)</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 0; background: #f4f5f7; color: #16181d; }
+    .layout { display: grid; grid-template-columns: 1fr 380px; gap: 16px; padding: 20px; }
+    .card { background: #fff; border: 1px solid #e2e5ea; border-radius: 10px; padding: 18px; }
+    h1 { font-size: 18px; margin: 0 0 14px; }
+    h2 { font-size: 13px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .5px; color: #5b6270; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    label { display: block; font-size: 11px; font-weight: 600; color: #5b6270; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .4px; }
+    input, textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #d3d7de; border-radius: 7px; font-size: 13px; font-family: inherit; background: #fbfbfc; }
+    textarea { min-height: 90px; resize: vertical; grid-column: 1 / -1; }
+    .full { grid-column: 1 / -1; }
+    #eventLog { font-family: ui-monospace, Consolas, monospace; font-size: 11px; max-height: 70vh; overflow: auto; }
+    #eventLog div { padding: 3px 6px; border-radius: 4px; margin-bottom: 3px; background: #f1f5ff; }
+    #eventLog div.change { background: #eafaf0; }
+    #eventLog div.blur { background: #fff4e6; }
+    .hint { font-size: 12px; color: #8a909c; margin-top: 10px; }
+    code { background: #eef1f5; padding: 1px 5px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="card">
+      <h1>🎯 Mock Job Application (Workday / React style)</h1>
+      <p class="hint">Fields below use the messy naming these portals actually use. Load the unpacked extension, open its popup, click <code>⚡ Fill Application</code>, then watch the log on the right and the fields fill in.</p>
+
+      <form id="appForm" autocomplete="off" onsubmit="return false;">
+        <div class="grid">
+          <div>
+            <label for="first_name">First Name</label>
+            <input type="text" id="first_name" name="first_name" placeholder="name='first_name'" />
+          </div>
+          <div>
+            <label for="lastName">Last Name</label>
+            <input type="text" id="lastName" name="lastName" placeholder="id='lastName'" />
+          </div>
+          <div class="full">
+            <label for="emailAddress">Email</label>
+            <input type="email" id="emailAddress" name="emailAddress" placeholder="type='email'" />
+          </div>
+          <div class="full">
+            <label for="mobilePhone">Phone</label>
+            <input type="tel" id="mobilePhone" name="mobilePhone" placeholder="type='tel'" />
+          </div>
+          <div class="full">
+            <label for="linkedin_url">LinkedIn</label>
+            <input type="url" id="linkedin_url" name="linkedin_url" placeholder="name='linkedin_url'" />
+          </div>
+          <div class="full">
+            <label for="field_22">GitHub Profile</label>
+            <input type="url" id="field_22" name="field_22" placeholder="useless name/id — must match via label text" />
+          </div>
+          <div class="full">
+            <label for="portfolio_website">Portfolio</label>
+            <input type="url" id="portfolio_website" name="portfolio_website" placeholder="name='portfolio_website'" />
+          </div>
+          <div class="full">
+            <label for="bioAbout">Bio / Summary (pre-filled — must be preserved)</label>
+            <textarea id="bioAbout" name="summary_bio" placeholder="textarea name='summary_bio'">Draft text to preserve</textarea>
+          </div>
+          <div class="full">
+            <label id="editableLabel">Professional Summary (contenteditable rich text)</label>
+            <div id="bioEditable" role="textbox" aria-label="Professional Summary" contenteditable="true"
+                 style="min-height:90px; padding:8px 10px; border:1px solid #d3d7de; border-radius:7px; background:#fbfbfc; font-size:13px;"></div>
+          </div>
+          <div class="full">
+            <label for="gender">Gender (real portal wording: Man/Woman)</label>
+            <select id="gender" name="gender">
+              <option value="">Select…</option>
+              <option value="man">Man</option>
+              <option value="woman">Woman</option>
+              <option value="nonbinary">Non-binary</option>
+              <option value="decline">Decline to self-identify</option>
+            </select>
+          </div>
+          <div class="full">
+            <label for="veteran_status">Veteran Status</label>
+            <select id="veteran_status" name="veteran_status">
+              <option value="">Select…</option>
+              <option value="protected">I am a protected veteran</option>
+              <option value="not_protected">I am not a protected veteran</option>
+              <option value="na">I prefer not to answer</option>
+            </select>
+          </div>
+          <div class="full">
+            <label for="disability">Disability Status (real portal wording: Yes/No)</label>
+            <select id="disability" name="disability">
+              <option value="">Select…</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+              <option value="dna">I don't wish to answer</option>
+            </select>
+          </div>
+          <div class="full">
+            <label for="cover_file">Cover Letter (file upload — must be skipped, not crash)</label>
+            <input type="file" id="cover_file" name="cover_letter" />
+          </div>
+          <div class="full">
+            <label for="resume_file">Resume/CV (file upload)</label>
+            <input type="file" id="resume_file" name="resume" />
+          </div>
+          <div class="full">
+            <label for="already">Already Filled (should NOT be clobbered)</label>
+            <input type="text" id="already" name="first_name_backup" value="Preserve me" />
+          </div>
+
+          <div class="full">
+            <label id="cb-gender-label">Gender (react-select custom dropdown)</label>
+            <div class="select__control" data-mock-combo="gender"
+                 style="border:1px solid #d3d7de;border-radius:7px;padding:8px 10px;background:#fbfbfc;font-size:13px;cursor:pointer;">
+              <div class="select__value-container" style="display:flex;align-items:center;">
+                <div class="select__placeholder">Select...</div>
+                <input class="select__input" role="combobox" aria-labelledby="cb-gender-label" readonly
+                       style="border:0;outline:0;flex:1;background:transparent;font-size:13px;" />
+                <span aria-hidden="true" style="padding-left:8px;color:#8a909c;">▾</span>
+              </div>
+            </div>
+            <div class="cb-menu"></div>
+          </div>
+          <div class="full">
+            <fieldset style="border:1px solid #e2e5ea;border-radius:7px;padding:10px;">
+              <legend style="font-size:11px;font-weight:600;color:#5b6270;">Are you legally authorized to work in the United States?</legend>
+              <label style="display:inline;margin-right:16px;"><input type="radio" name="work_auth" value="yes" style="width:auto;" /> Yes</label>
+              <label style="display:inline;"><input type="radio" name="work_auth" value="no" style="width:auto;" /> No</label>
+            </fieldset>
+          </div>
+          <div class="full">
+            <fieldset style="border:1px solid #e2e5ea;border-radius:7px;padding:10px;">
+              <legend style="font-size:11px;font-weight:600;color:#5b6270;">Will you now or in the future require sponsorship for employment visa status?</legend>
+              <label style="display:inline;margin-right:16px;"><input type="radio" name="sponsorship" value="yes" style="width:auto;" /> Yes</label>
+              <label style="display:inline;"><input type="radio" name="sponsorship" value="no" style="width:auto;" /> No</label>
+            </fieldset>
+          </div>
+          <div class="full">
+            <label for="desired_salary">Desired Salary (custom snippet target)</label>
+            <input type="text" id="desired_salary" name="desired_salary" placeholder="name='desired_salary'" />
+          </div>
+          <div class="full">
+            <label for="hardest">What was the hardest thing you did at your last internship?</label>
+            <textarea id="hardest" name="hardest_challenge" placeholder="free-text — expect this in the unfilled report"></textarea>
+          </div>
+          <div class="full">
+            <label for="why_here">Why do you want to work here?</label>
+            <textarea id="why_here" name="why_here" placeholder="target for an answer-bank snippet"></textarea>
+          </div>
+          <div class="full">
+            <label for="current_company">Current Company</label>
+            <input type="text" id="current_company" name="current_company" />
+          </div>
+          <div class="full">
+            <label for="job_title">Current Title</label>
+            <input type="text" id="job_title" name="job_title" />
+          </div>
+          <div class="full">
+            <label for="school">School</label>
+            <input type="text" id="school" name="school" />
+          </div>
+          <div class="full">
+            <label for="years_exp">Years of Experience</label>
+            <input type="text" id="years_exp" name="years_experience" />
+          </div>
+          <div class="full">
+            <label for="grad_date">Graduation Date (input type=date)</label>
+            <input type="date" id="grad_date" name="graduation_date" />
+          </div>
+          <div class="full">
+            <label for="start_date">Earliest Start Date (input type=date)</label>
+            <input type="date" id="start_date" name="start_date" />
+          </div>
+          <div class="full">
+            <label id="gradpicker">Graduation Date (month/year selects)</label>
+            <select name="grad_month" aria-labelledby="gradpicker" style="width:auto;">
+              <option value="">Month</option>
+              <option value="1">January</option>
+              <option value="2">February</option>
+              <option value="3">March</option>
+              <option value="4">April</option>
+              <option value="5">May</option>
+              <option value="6">June</option>
+              <option value="7">July</option>
+              <option value="8">August</option>
+              <option value="9">September</option>
+              <option value="10">October</option>
+              <option value="11">November</option>
+              <option value="12">December</option>
+            </select>
+            <select name="grad_year" aria-labelledby="gradpicker" style="width:auto;">
+              <option value="">Year</option>
+              <option value="2024">2024</option>
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+              <option value="2027">2027</option>
+            </select>
+          </div>
+          <div class="full">
+            <label for="street_address">Street Address</label>
+            <input type="text" id="street_address" name="address" />
+          </div>
+          <div class="full">
+            <label for="city">City</label>
+            <input type="text" id="city" name="city" />
+          </div>
+          <div class="full">
+            <label for="country_code">Country*</label>
+            <select id="country_code" name="country" style="width:auto;">
+              <option value="">Select...</option>
+              <option value="US">United States +1</option>
+              <option value="CA">Canada +1</option>
+              <option value="GB">United Kingdom +44</option>
+            </select>
+          </div>
+          <div class="full">
+            <label for="location_city">Location (City)*</label>
+            <input type="text" id="location_city" name="location" />
+          </div>
+          <div class="full">
+            <label id="cb-state-label">What U.S State do you currently reside in?*</label>
+            <div class="select__control" data-mock-combo="state" data-choices="California,Texas,New York,Washington"
+                 style="border:1px solid #d3d7de;border-radius:7px;padding:8px 10px;background:#fbfbfc;font-size:13px;cursor:pointer;">
+              <div class="select__value-container" style="display:flex;align-items:center;">
+                <div class="select__placeholder">Select...</div>
+                <input class="select__input" role="combobox" aria-labelledby="cb-state-label" readonly
+                       style="border:0;outline:0;flex:1;background:transparent;font-size:13px;" />
+                <span aria-hidden="true" style="padding-left:8px;color:#8a909c;">▾</span>
+              </div>
+            </div>
+            <div class="cb-menu"></div>
+          </div>
+          <div class="full">
+            <label id="cb-office-label">Preferred office location*</label>
+            <div class="select__control" data-mock-combo="office" data-choices="San Francisco,Palo Alto,Seattle,New York"
+                 style="border:1px solid #d3d7de;border-radius:7px;padding:8px 10px;background:#fbfbfc;font-size:13px;cursor:pointer;">
+              <div class="select__value-container" style="display:flex;align-items:center;">
+                <div class="select__placeholder">Select...</div>
+                <input class="select__input" role="combobox" aria-labelledby="cb-office-label" readonly
+                       style="border:0;outline:0;flex:1;background:transparent;font-size:13px;" />
+                <span aria-hidden="true" style="padding-left:8px;color:#8a909c;">▾</span>
+              </div>
+            </div>
+            <div class="cb-menu"></div>
+          </div>
+          <div class="full">
+            <label id="cb-eng-label">What type of engineering are you primarily interested in?*</label>
+            <div class="select__control" data-mock-combo="eng" data-choices="Backend,Frontend,Machine Learning,Mobile,Infrastructure"
+                 style="border:1px solid #d3d7de;border-radius:7px;padding:8px 10px;background:#fbfbfc;font-size:13px;cursor:pointer;">
+              <div class="select__value-container" style="display:flex;align-items:center;">
+                <div class="select__placeholder">Select...</div>
+                <input class="select__input" role="combobox" aria-labelledby="cb-eng-label" readonly
+                       style="border:0;outline:0;flex:1;background:transparent;font-size:13px;" />
+                <span aria-hidden="true" style="padding-left:8px;color:#8a909c;">▾</span>
+              </div>
+            </div>
+            <div class="cb-menu"></div>
+          </div>
+          <div class="full">
+            <label id="cb-team-label">Which team interests you most?*</label>
+            <div class="select__control" data-mock-combo="team" data-choices="Growth,Trust &amp; Safety,Ads,Core Infra"
+                 style="border:1px solid #d3d7de;border-radius:7px;padding:8px 10px;background:#fbfbfc;font-size:13px;cursor:pointer;">
+              <div class="select__value-container" style="display:flex;align-items:center;">
+                <div class="select__placeholder">Select...</div>
+                <input class="select__input" role="combobox" aria-labelledby="cb-team-label" readonly
+                       style="border:0;outline:0;flex:1;background:transparent;font-size:13px;" />
+                <span aria-hidden="true" style="padding-left:8px;color:#8a909c;">▾</span>
+              </div>
+            </div>
+            <div class="cb-menu"></div>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Live Event Log</h2>
+      <div id="eventLog"><div>Waiting for events…</div></div>
+      <p class="hint">Firing <code>input</code>, <code>change</code>, and <code>blur</code> here proves the extension triggers each event on every field.</p>
+    </div>
+  </div>
+
+  <script>
+    const log = document.getElementById("eventLog");
+    let cleared = false;
+    const names = ["input", "change", "blur", "focus", "keydown"];
+
+    names.forEach(function (type) {
+      document.getElementById("appForm").addEventListener(
+        type,
+        function (e) {
+          if (!cleared) { log.innerHTML = ""; cleared = true; }
+          const line = document.createElement("div");
+          line.className = type;
+          const id = e.target.id || e.target.name || e.target.tagName;
+          const val = (e.target.value || "").slice(0, 28);
+          line.textContent =
+            new Date().toLocaleTimeString() + "  " + type.toUpperCase() +
+            "  →  #" + id + " = \"" + val + "\"";
+          log.prepend(line);
+        },
+        true
+      );
+    });
+  </script>
+
+  <script>
+    // Minimal react-select lookalike so the extension's custom-dropdown path
+    // can be verified locally: the control opens a menu of .select__option
+    // divs, and clicking one sets the chosen value — same shape as Greenhouse.
+    document.querySelectorAll('[data-mock-combo]').forEach(function (control) {
+      control.addEventListener('mousedown', function () {
+        var menu = control.parentElement.querySelector('.cb-menu');
+        var input = control.querySelector('.select__input');
+        if (menu.innerHTML) {
+          // Already open -> toggle shut.
+          menu.innerHTML = '';
+          if (input) input.setAttribute('aria-expanded', 'false');
+          return;
+        }
+        var choices = (control.getAttribute('data-choices') || 'Man,Woman,Non-binary,Decline to self-identify').split(',');
+        menu.innerHTML = choices.map(function (c) {
+          return '<div class="select__option" style="padding:6px 10px;cursor:pointer;background:#fff;border:1px solid #e2e5ea;border-radius:6px;margin-top:4px;font-size:13px;">' + c + '</div>';
+        }).join('');
+        if (input) input.setAttribute('aria-expanded', 'true');
+      });
+    });
+
+    document.addEventListener('click', function (e) {
+      var option = e.target.closest ? e.target.closest('.select__option') : null;
+      if (!option) return;
+      var menu = option.closest('.cb-menu');
+      var container = menu.parentElement.querySelector('.select__value-container');
+      var placeholder = container.querySelector('.select__placeholder');
+      if (placeholder) placeholder.remove();
+      var existing = container.querySelector('.select__single-value');
+      if (existing) existing.remove();
+      var valueEl = document.createElement('div');
+      valueEl.className = 'select__single-value';
+      valueEl.textContent = option.textContent;
+      container.insertBefore(valueEl, container.firstChild);
+      // Intentionally leave the menu open (like react-select multi-select) so
+      // that the extension's closeCombo() is what closes it.
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      document.querySelectorAll('.cb-menu').forEach(function (m) {
+        m.innerHTML = '';
+        var input = m.parentElement.querySelector('.select__input');
+        if (input) input.setAttribute('aria-expanded', 'false');
+      });
+    });
+  </script>
+</body>
+</html>

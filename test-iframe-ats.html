@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ATS Application Frame (simulates boards.greenhouse.io)</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 0; padding: 14px; background: #fff; color: #16181d; }
+    h1 { font-size: 15px; margin: 0 0 4px; }
+    .sub { font-size: 11px; color: #8a909c; margin-bottom: 12px; }
+    label { display: block; font-size: 11px; font-weight: 600; color: #5b6270; margin: 8px 0 4px; text-transform: uppercase; letter-spacing: .4px; }
+    input, textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #d3d7de; border-radius: 7px; font-size: 13px; font-family: inherit; background: #fbfbfc; }
+    textarea { min-height: 64px; resize: vertical; }
+    #eventLog { margin-top: 10px; font-family: ui-monospace, Consolas, monospace; font-size: 11px; max-height: 190px; overflow: auto; background: #f7f9fc; border: 1px solid #e2e5ea; border-radius: 8px; padding: 8px; }
+    #eventLog div { padding: 2px 5px; border-radius: 4px; margin-bottom: 2px; background: #eef3ff; }
+  </style>
+</head>
+<body>
+  <h1>🚀 Embedded Application Form (cross-origin)</h1>
+  <div class="sub">Served from <code>http://127.0.0.1:8081</code></div>
+
+  <form id="atsForm" autocomplete="off" onsubmit="return false;">
+    <label for="first-name">First Name</label>
+    <input type="text" id="first-name" name="first_name" />
+
+    <label for="last-name">Last Name</label>
+    <input type="text" id="last-name" name="last_name" />
+
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" />
+
+    <label for="phone">Phone</label>
+    <input type="tel" id="phone" name="phone" />
+
+    <label for="linkedin">LinkedIn</label>
+    <input type="url" id="linkedin" name="linkedin_profile" />
+
+    <label for="field_99">GitHub Profile</label>
+    <input type="url" id="field_99" name="field_99" placeholder="label-only match" />
+
+    <label for="cover">Cover Letter</label>
+    <textarea id="cover" name="cover_letter"></textarea>
+  </form>
+
+  <div id="eventLog"><div>Frame event log — waiting…</div></div>
+
+  <script>
+    const log = document.getElementById("eventLog");
+    let cleared = false;
+    ["input", "change", "blur"].forEach(function (type) {
+      document.getElementById("atsForm").addEventListener(type, function (e) {
+        if (!cleared) { log.innerHTML = ""; cleared = true; }
+        const line = document.createElement("div");
+        line.textContent = type.toUpperCase() + " → #" + (e.target.id || e.target.name) +
+          ' = "' + (e.target.value || "").slice(0, 24) + '"';
+        log.prepend(line);
+      }, true);
+    });
+  </script>
+</body>
+</html>

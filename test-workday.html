@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Workday-like Work Experience (mock)</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 24px; color: #16181d; max-width: 720px; }
+    h2 { font-size: 18px; }
+    .exp-block { border: 1px solid #e2e5ea; border-radius: 8px; padding: 14px; margin-bottom: 14px; background: #fff; }
+    .exp-block h4 { margin: 0 0 10px; font-size: 14px; }
+    .row { margin-bottom: 8px; }
+    label { display: block; font-size: 11px; font-weight: 600; color: #5b6270; margin-bottom: 3px; }
+    label.cb { display: inline; }
+    input[type="text"], textarea { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid #d3d7de; border-radius: 6px; font: inherit; }
+    textarea { min-height: 70px; }
+    .del { float: right; background: #fdecec; border: 1px solid #f4c7c7; color: #b91c1c; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+    #addExpBtn { background: #ee5a24; color: #fff; border: 0; border-radius: 6px; padding: 9px 18px; font-weight: 700; cursor: pointer; }
+    .hint { color: #8a909c; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h2>Work Experience</h2>
+  <p class="hint">Mock of the Workday section: repeated blocks, an "Add Another" button, and per-block Delete. Blocks 1–4 are pre-seeded with junk, like Workday's résumé parser leaves behind.</p>
+  <div id="workBlocks"></div>
+  <button type="button" id="addExpBtn">Add Another</button>
+
+  <h2>Education</h2>
+  <p class="hint">Same shape: repeated blocks + its own "Add Another". Pre-seeded with 2 junk entries.</p>
+  <div id="eduBlocks"></div>
+  <button type="button" id="addEduBtn2">Add Another</button>
+
+  <script>
+    (function () {
+      var count = 0;
+      function makeBlock() {
+        count++;
+        var id = count;
+        var div = document.createElement("div");
+        div.className = "exp-block";
+        div.innerHTML =
+          '<button type="button" class="del" aria-label="Delete">Delete</button>' +
+          '<h4>Work Experience ' + id + '</h4>' +
+          '<div class="row"><label for="jt' + id + '">Job Title*</label><input type="text" id="jt' + id + '" name="jobTitle' + id + '" /></div>' +
+          '<div class="row"><label for="co' + id + '">Company*</label><input type="text" id="co' + id + '" name="company' + id + '" /></div>' +
+          '<div class="row"><label for="lo' + id + '">Location</label><input type="text" id="lo' + id + '" name="location' + id + '" /></div>' +
+          '<div class="row"><label class="cb">I currently work here</label> <input type="checkbox" id="cu' + id + '" /></div>' +
+          '<div class="row"><label>From*</label><div class="ctl"><input type="text" id="fr' + id + '" name="from' + id + '" placeholder="MM/YYYY" /></div></div>' +
+          '<div class="row"><label>To*</label><div class="ctl"><input type="text" id="to' + id + '" name="to' + id + '" placeholder="MM/YYYY" /></div></div>' +
+          '<div class="row"><label for="de' + id + '">Role Description</label><textarea id="de' + id + '" name="desc' + id + '"></textarea></div>';
+        div.querySelector(".del").addEventListener("click", function () { div.remove(); });
+        document.getElementById("workBlocks").appendChild(div);
+        return div;
+      }
+
+      document.getElementById("addExpBtn").addEventListener("click", makeBlock);
+
+      // Pre-seed four auto-parsed blocks with junk.
+      for (var i = 0; i < 4; i++) makeBlock();
+      var blocks = document.querySelectorAll(".exp-block");
+      blocks[0].querySelector('input[id^="jt"]').value = "Parsed Ttitle";
+      blocks[0].querySelector("textarea").value = "incomplete sentence parsed from resume,";
+      blocks[1].querySelector('input[id^="co"]').value = "Wrong Company";
+
+      // --- Education (same repeatable shape, own Add button) ---------------
+      var eduCount = 0;
+      function makeEduBlock() {
+        eduCount++;
+        var id = eduCount;
+        var div = document.createElement("div");
+        div.className = "edu-block";
+        div.innerHTML =
+          '<button type="button" class="del" aria-label="Delete">Delete</button>' +
+          '<h4>Education ' + id + '</h4>' +
+          '<div class="row"><label for="sc' + id + '">School or University*</label><input type="text" id="sc' + id + '" name="school' + id + '" /></div>' +
+          '<div class="row"><label for="dg' + id + '">Degree*</label><select id="dg' + id + '" name="degree' + id + '">' +
+            '<option value="">Select One</option>' +
+            '<option value="associate">Associate Degree</option>' +
+            "<option value=\"bachelor\">Bachelor's Degree</option>" +
+            "<option value=\"master\">Master's Degree</option>" +
+            '<option value="phd">Doctorate</option>' +
+          '</select></div>' +
+          '<div class="row"><label>Field of Study</label><div class="select__control" data-mock-combo="major" data-choices="Computer Science,General Studies,Data Science"><div class="select__value-container"><div class="select__placeholder">Select...</div><input class="select__input" role="combobox" aria-label="Field of Study" readonly /></div></div><div class="cb-menu"></div></div>' +
+          '<div class="row"><label for="gp' + id + '">Overall Result (GPA)</label><input type="text" id="gp' + id + '" name="gpa' + id + '" /></div>' +
+          '<div class="row"><label>From</label><div class="ctl"><input type="text" id="yf' + id + '" name="fromYear' + id + '" placeholder="YYYY" /></div></div>' +
+          '<div class="row"><label>To (Actual or Expected)</label><div class="ctl"><input type="text" id="yt' + id + '" name="toYear' + id + '" placeholder="YYYY" /></div></div>';
+        div.querySelector(".del").addEventListener("click", function () { div.remove(); });
+        document.getElementById("eduBlocks").appendChild(div);
+        return div;
+      }
+      document.getElementById("addEduBtn2").addEventListener("click", makeEduBlock);
+      for (var j = 0; j < 2; j++) makeEduBlock();
+      var eduBlocks = document.querySelectorAll(".edu-block");
+      eduBlocks[0].querySelector('input[id^="sc"]').value = "Wrong School";
+
+      // Minimal react-select lookalike for in-block dropdowns. Delegated so it
+      // also works for blocks added later via "Add Another".
+      document.addEventListener("mousedown", function (e) {
+        var control = e.target.closest ? e.target.closest('[data-mock-combo]') : null;
+        if (!control) return;
+        var menu = control.parentElement.querySelector('.cb-menu');
+        if (!menu) return;
+        var input = control.querySelector('.select__input');
+        if (menu.innerHTML) {
+          menu.innerHTML = '';
+          if (input) input.setAttribute('aria-expanded', 'false');
+          return;
+        }
+        var choices = (control.getAttribute('data-choices') || '').split(',');
+        menu.innerHTML = choices.map(function (c) {
+          return '<div class="select__option" style="padding:6px 10px;cursor:pointer;background:#fff;border:1px solid #e2e5ea;border-radius:6px;margin-top:4px;font-size:13px;">' + c + '</div>';
+        }).join('');
+        if (input) input.setAttribute('aria-expanded', 'true');
+      });
+      document.addEventListener("click", function (e) {
+        var option = e.target.closest ? e.target.closest('.select__option') : null;
+        if (!option) return;
+        var menu = option.closest('.cb-menu');
+        var container = menu.parentElement.querySelector('.select__value-container');
+        var ph = container.querySelector('.select__placeholder'); if (ph) ph.remove();
+        var ex = container.querySelector('.select__single-value'); if (ex) ex.remove();
+        var v = document.createElement('div'); v.className = 'select__single-value'; v.textContent = option.textContent;
+        container.insertBefore(v, container.firstChild);
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== 'Escape') return;
+        document.querySelectorAll('.cb-menu').forEach(function (m) {
+          m.innerHTML = '';
+          var inp = m.parentElement.querySelector('.select__input');
+          if (inp) inp.setAttribute('aria-expanded', 'false');
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
