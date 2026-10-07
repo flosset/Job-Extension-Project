@@ -134,9 +134,12 @@ log in one go. Nothing is ever sent anywhere, and the tracker
 only records a page you actually pressed Fill on.
 
 
-`Export data` writes your profile (including the resume) and the widgets you
-taught me to a JSON file — that file contains personal details, so keep it
-somewhere safe. `Delete all` wipes everything from the browser.
+`Back up everything` writes one JSON file holding your profile (including the
+resume), your **named profiles**, the **widgets** you taught me, your
+**application log** and the **answers learned from typing**; `Restore everything`
+puts them all back — on the same machines or a new one. That file contains
+personal details, so keep it somewhere safe. `Delete all` wipes everything from
+the browser.
 
 ## Install (unpacked)
 

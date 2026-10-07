@@ -474,7 +474,7 @@ function openOptionsPage() {
 // The data is local-only, so the user needs a backup path and a wipe button.
 
 const EXPORT_FORMAT = "job-autofill-profile";
-const EXPORT_VERSION = 2;
+const EXPORT_VERSION = 3;
 
 /** Keep only the keys we understand, with the types we expect. */
 function sanitizeProfile(raw) {
@@ -541,12 +541,14 @@ function sanitizeProfile(raw) {
 }
 
 /**
- * The export file's text (pure, so it can be tested without a download). The
- * saved widgets ride along, so moving to a new machine does not throw away what
- * you taught it — they carry other people's details, so the same "keep this file
- * safe" advice applies to the whole file.
+ * The backup file's text (pure, so it can be tested without a download). It is a
+ * FULL backup: the profile you are editing, the saved widgets, the NAMED
+ * profiles (each with its own resume), the application log and the answers
+ * learned from typing — so moving to a new machine keeps the time you have
+ * invested. Everything in it is personal, so the same "keep it safe" advice
+ * applies to the whole file.
  */
-function buildExportText(profile, widgets) {
+function buildExportText(profile, widgets, rest) {
   const out = {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
@@ -557,12 +559,22 @@ function buildExportText(profile, widgets) {
     widgets && typeof widgets === "object" ? widgets : { items: [] }
   ).items;
   if (items.length) out.widgets = items;
+
+  if (rest && typeof rest === "object") {
+    const profiles = JOB_AUTOFILL_SHARED.sanitizeProfiles(rest.profiles, null);
+    if (profiles.items.length) out.profiles = profiles;
+    const applications = JOB_AUTOFILL_SHARED.sanitizeApplications(rest.applications);
+    if (applications.items.length) out.applications = applications;
+    const learned = JOB_AUTOFILL_SHARED.sanitizeLearned(rest.learned);
+    if (learned.candidates.length) out.learned = learned;
+  }
   return JSON.stringify(out, null, 2);
 }
 
 /**
- * Parse imported text into the profile AND the widgets it carries, or throw a
- * friendly Error. An older or hand-written file simply carries no widgets.
+ * Parse an imported file into everything it carries — the profile plus widgets,
+ * named profiles, the application log and the learned answers — or throw a
+ * friendly Error. An older or hand-written file simply carries fewer of these.
  */
 function parseImportRecords(text) {
   let data;
@@ -579,10 +591,15 @@ function parseImportRecords(text) {
   if (Object.keys(profile).length === 0) {
     throw new Error("That file does not contain a profile.");
   }
-  const widgets = JOB_AUTOFILL_SHARED.sanitizeRecipes(
-    data.widgets && typeof data.widgets === "object" ? data.widgets : { items: [] }
-  ).items;
-  return { profile, widgets };
+  return {
+    profile,
+    widgets: JOB_AUTOFILL_SHARED.sanitizeRecipes(
+      data.widgets && typeof data.widgets === "object" ? data.widgets : { items: [] }
+    ).items,
+    profiles: JOB_AUTOFILL_SHARED.sanitizeProfiles(data.profiles, null),
+    applications: JOB_AUTOFILL_SHARED.sanitizeApplications(data.applications),
+    learned: JOB_AUTOFILL_SHARED.sanitizeLearned(data.learned)
+  };
 }
 
 /** Parse imported text into a profile, or throw a friendly Error. */
@@ -616,34 +633,48 @@ async function applyProfile(profile) {
   fillFormFromProfile(profile);
 }
 
-/** Download the form's current contents (and the saved widgets) as JSON. */
+/** Download a full backup: profile, widgets, named profiles, log, answers. */
 async function exportProfile() {
   let widgets = { items: [] };
+  let rest = null;
   try {
-    const data = await chrome.storage.local.get(RECIPES_KEY);
+    const data = await chrome.storage.local.get([
+      RECIPES_KEY,
+      PROFILES_KEY,
+      APPS_KEY,
+      LEARNED_KEY
+    ]);
     widgets = JOB_AUTOFILL_SHARED.sanitizeRecipes(data && data[RECIPES_KEY]);
+    rest = {
+      profiles: (data && data[PROFILES_KEY]) || null,
+      applications: (data && data[APPS_KEY]) || null,
+      learned: (data && data[LEARNED_KEY]) || null
+    };
   } catch (err) {
-    /* export the profile even if the widgets cannot be read */
+    /* back up the profile even if the rest cannot be read */
   }
   try {
-    const blob = new Blob([buildExportText(readForm(), widgets)], {
+    const blob = new Blob([buildExportText(readForm(), widgets, rest)], {
       type: "application/json"
     });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "job-autofill-profile.json";
+    link.download = "job-autofill-backup.json";
     document.body.appendChild(link);
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setStatus("Exported. That file holds your personal details — keep it safe.", "ok");
+    setStatus(
+      "Backed up everything — that file holds your personal details, keep it safe.",
+      "ok"
+    );
   } catch (err) {
-    setStatus("Could not build the export file.", "warn");
+    setStatus("Could not build the backup file.", "warn");
   }
 }
 
-/** Import a previously exported JSON file (replacing what is stored). */
+/** Restore a previously exported JSON file (replacing what is stored). */
 async function onImportFilePicked() {
   const input = $("importFile");
   const file = input && input.files && input.files[0];
@@ -652,34 +683,46 @@ async function onImportFilePicked() {
     const records = parseImportRecords(await file.text());
     const proceed =
       typeof window.confirm !== "function" ||
-      window.confirm("Replace everything in this browser with the imported profile?");
+      window.confirm(
+        "Restore everything from this file? It replaces your profile, widgets, " +
+          "named profiles, application log and saved answers in this browser."
+      );
     if (!proceed) {
-      setStatus("Import cancelled — nothing changed.", "warn");
+      setStatus("Restore cancelled — nothing changed.", "warn");
       return;
     }
     await applyProfile(records.profile);
-    // A file with no widgets leaves the widgets you already have alone; a file
-    // that carries them restores them, so a reinstall loses nothing.
+    // Each section is restored only when the file carries it, so an older or
+    // partial file never wipes the parts it does not mention.
     if (records.widgets.length) {
-      await chrome.storage.local.set({
-        [RECIPES_KEY]: { items: records.widgets }
-      });
+      await chrome.storage.local.set({ [RECIPES_KEY]: { items: records.widgets } });
     }
-    setStatus(
-      records.widgets.length
-        ? "Imported your profile and " +
-            records.widgets.length +
-            " remembered widget" +
-            (records.widgets.length === 1 ? "" : "s") +
-            ". Check the fields above, then fill."
-        : "Imported. Check the fields above, then fill.",
-      "ok"
-    );
+    if (records.profiles && records.profiles.items.length) {
+      await chrome.storage.local.set({ [PROFILES_KEY]: records.profiles });
+    }
+    if (records.applications && records.applications.items.length) {
+      await chrome.storage.local.set({ [APPS_KEY]: records.applications });
+    }
+    if (records.learned && records.learned.candidates.length) {
+      await chrome.storage.local.set({ [LEARNED_KEY]: records.learned });
+    }
+    await refreshAfterRestore();
+    setStatus("Restored. Check the fields above, then fill.", "ok");
   } catch (err) {
     setStatus((err && err.message) || "Could not import that file.", "warn");
   } finally {
     if (input) input.value = "";
   }
+}
+
+/** Re-read every list the options page shows, after a restore. */
+async function refreshAfterRestore() {
+  if (typeof loadProfiles === "function") await loadProfiles();
+  if (typeof refreshProfileSelect === "function") refreshProfileSelect();
+  if (typeof loadApplications === "function") await loadApplications();
+  if (typeof renderApplications === "function") renderApplications();
+  if (typeof loadWidgets === "function") await loadWidgets();
+  if (typeof loadLearned === "function") loadLearned();
 }
 
 /** Wipe everything this extension stored, after an explicit confirmation. */

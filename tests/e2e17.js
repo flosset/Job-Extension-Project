@@ -39,7 +39,7 @@ window.chrome = {
 window.eval(
   SRC +
     "\n; window.__t = { get dirty() { return formDirty; }, readForm, " +
-    "buildExportText, parseImportText, saveProfile, exportProfile, " +
+    "buildExportText, parseImportText, parseImportRecords, saveProfile, exportProfile, " +
     "onImportFilePicked, deleteAllData };"
 );
 const T = window.__t;
@@ -102,7 +102,7 @@ const SOURCE_PROFILE = {
   // --- B. Envelope shape ---------------------------------------------------
   const env = JSON.parse(text);
   t("B: envelope format tag", env.format === "job-autofill-profile", env.format);
-  t("B: envelope version", env.version === 2, env.version);
+  t("B: envelope version", env.version === 3, env.version);
   t("B: envelope carries the profile", !!env.profile);
 
   // --- C. Tolerant import --------------------------------------------------
@@ -166,8 +166,8 @@ const SOURCE_PROFILE = {
   T.exportProfile();
   await sleep(20);
   t("F: produced a JSON blob", !!capturedBlob && capturedBlob.type === "application/json");
-  t("F: set a download filename", downloadNames[0] === "job-autofill-profile.json", downloadNames[0]);
-  t("F: export status shown", /Exported/.test(statusText()), statusText());
+  t("F: set a download filename", downloadNames[0] === "job-autofill-backup.json", downloadNames[0]);
+  t("F: export status shown", /Backed up everything/.test(statusText()), statusText());
 
   let exportedText = null;
   if (capturedBlob && typeof capturedBlob.text === "function") {
@@ -218,6 +218,59 @@ const SOURCE_PROFILE = {
   window.confirm = () => false;
   await T.deleteAllData();
   t("H: cancelled delete changes nothing", removedKey === null && /cancelled/i.test(statusText()));
+
+  // --- I. a full backup round-trips profiles, the log and answers ----------
+  const backup = T.buildExportText(
+    { firstName: "Jane" },
+    {
+      items: [
+        {
+          host: "h.com",
+          name: "Widget",
+          anchor: ["x"],
+          fields: { a: ["a"] },
+          rows: [{ a: { source: "literal", value: "v" } }]
+        }
+      ]
+    },
+    {
+      profiles: {
+        activeId: "p1",
+        items: [{ id: "p1", name: "Frontend", profile: { firstName: "Jane" } }]
+      },
+      applications: {
+        items: [{ company: "Acme", role: "Eng", url: "https://acme.com/j/1", status: "applied" }]
+      },
+      learned: {
+        candidates: [{ question: "Why here?", value: "Because", site: "", at: 5 }],
+        skipped: []
+      }
+    }
+  );
+  t("I: the backup names its version", JSON.parse(backup).version === 3);
+  const records = T.parseImportRecords(backup);
+  t("I: the profile round-trips", records.profile.firstName === "Jane", records.profile.firstName);
+  t("I: it carries the widgets", records.widgets.length === 1, records.widgets.length);
+  t(
+    "I: the NAMED profiles",
+    records.profiles.items.length === 1 && records.profiles.items[0].name === "Frontend",
+    JSON.stringify(records.profiles.items[0] && records.profiles.items[0].name)
+  );
+  t(
+    "I: the application log",
+    records.applications.items.length === 1 &&
+      records.applications.items[0].company === "Acme",
+    records.applications.items.length
+  );
+  t(
+    "I: and the learned answers",
+    records.learned.candidates.length === 1,
+    records.learned.candidates.length
+  );
+  t(
+    "I: an older profile-only file still imports",
+    T.parseImportRecords(T.buildExportText({ firstName: "Solo" })).profiles.items.length === 0
+  );
 
   console.log(
     `\n${fail === 0 ? "DATA-OWNERSHIP E2E PASS" : "DATA-OWNERSHIP E2E FAIL"} (${pass} passed, ${fail} failed)`
