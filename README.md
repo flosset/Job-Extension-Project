@@ -28,8 +28,10 @@ no telemetry, no accounts.
 - **Keeps an application log.** Pressing Fill on a posting records the company,
   role, URL and date, and a page you have applied to before is **warned about
   before you fill it again** — so a 100-application search never repeats work.
-  A status per row (applied / screen / interview / offer / rejected / withdrawn)
-  and a CSV export live on the options page.
+  Each row's name is **editable in place**, because a page does not always say
+  which job it is: whatever the page gave is filled in, and the rest is one click
+  away. A status per row (applied / screen / interview / offer / rejected /
+  withdrawn) and a CSV export live on the options page.
 - **Multiple profiles.** Keep a Frontend resume and a Full-stack one (or a US and
   a UK address) and pick one per application from the popup.
 - **Cover-letter templates** with `{company}` / `{role}` / `{firstName}` /
@@ -39,6 +41,28 @@ no telemetry, no accounts.
 - **Split phone fields** (a separate country code + number, as Taleo and Workday
   render them) are filled as a pair.
 - Reaches fields inside **open Shadow DOM** (web-component widgets).
+
+## How the job name is detected
+
+The **date is always exact** — it is when you pressed Fill. The **name** comes
+from whatever the page is willing to say, in this order:
+
+1. the `schema.org/JobPosting` JSON-LD block (`hiringOrganization` + `title`) —
+   what Greenhouse, Lever, Ashby, Workable and most boards publish, and the only
+   fully reliable source;
+2. `og:site_name`, the employer's **logo alt text** ("Acme logo" → "Acme"), or a
+   `company` / `employer` heading;
+3. the page title, split as "Role - Company" or "Role at Company" (a board's own
+   name is never taken as the employer);
+4. an `<h1>` for the role.
+
+An ATS vendor's own name is always skipped rather than used: a wrong company
+would fire the duplicate warning on every posting from that board.
+
+When the form sits on a *different* page than the posting — a bare `/apply` link
+with no metadata — there may be nothing to read. The row then shows the site host
+instead of a name, and the name is one click away, because **both fields are
+editable inline**.
 
 ## Privacy
 

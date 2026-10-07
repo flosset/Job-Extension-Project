@@ -170,7 +170,17 @@ function applicationsCsv() {
 
 // --- The options page's application list -----------------------------------
 
-/** Render the log, newest first, with a status picker per row. */
+/** Change one application's name/role (the page often cannot tell us). */
+async function setApplicationName(id, company, role) {
+  const entry = applicationState.items.find((item) => item.id === id);
+  if (!entry) return false;
+  const clean = (value) => String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+  entry.company = clean(company).slice(0, 80);
+  entry.role = clean(role).slice(0, 120);
+  return writeApplications();
+}
+
+/** Render the log, newest first, with an editable name per row. */
 function renderApplications() {
   const container = $("appRows");
   if (!container) return; // not the options page
@@ -187,20 +197,43 @@ function renderApplications() {
   for (const entry of applicationState.items) {
     const row = document.createElement("div");
     row.className = "app-row";
+    // Hovering a row shows the full "Company — Role", whatever the inputs hold.
+    row.title = describeApplication(entry);
 
     const main = document.createElement("div");
     main.className = "app-main";
 
-    const title = document.createElement("div");
-    title.className = "app-title";
-    title.textContent = describeApplication(entry);
-    main.appendChild(title);
+    // The name, editable in place: whichever parts the page could tell us are
+    // filled in, and the rest is one click away from being right.
+    const name = document.createElement("div");
+    name.className = "app-name";
+    const company = document.createElement("input");
+    company.type = "text";
+    company.className = "app-company";
+    company.placeholder = "Company";
+    company.value = entry.company || "";
+    company.title = "Company — edit if the page did not say";
+    const role = document.createElement("input");
+    role.type = "text";
+    role.className = "app-role";
+    role.placeholder = "Role";
+    role.value = entry.role || "";
+    role.title = "Role — edit if the page did not say";
+    const save = () => setApplicationName(entry.id, company.value, role.value);
+    company.addEventListener("change", save);
+    role.addEventListener("change", save);
+    name.appendChild(company);
+    name.appendChild(role);
+    main.appendChild(name);
 
+    // When applied, and where it was — the two facts the list exists for.
     const meta = document.createElement("div");
     meta.className = "app-meta";
     const when = entry.lastAt || entry.at;
-    meta.textContent = formatWhen(when) +
-      (entry.times > 1 ? ` · filled ${entry.times}×` : "");
+    meta.textContent =
+      formatWhen(when) +
+      (entry.times > 1 ? ` · filled ${entry.times}×` : "") +
+      (entry.host ? ` · ${entry.host}` : "");
     if (entry.url) {
       const link = document.createElement("a");
       link.href = entry.url;

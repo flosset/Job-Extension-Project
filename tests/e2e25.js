@@ -52,6 +52,7 @@ const POPUP_SHELL = `<!doctype html><html><body>
     <p id="coverNote"></p><pre id="coverPreview"></pre></div>
   <div id="grantRow" hidden></div>
   <div id="learnedSection" hidden><div id="learnedRows"></div></div>
+  <div id="appRows"></div>
   <button id="fillBtn"></button><button id="saveBtn"></button>
   <input id="resumeFile" /><button id="clearResumeBtn"></button>
 </body></html>`;
@@ -87,7 +88,7 @@ function openPopup(store, opts) {
       // A getter: the module REASSIGNS this binding when it reloads the log.
       "get applicationState() { return applicationState; }, " +
       "describeApplication, formatWhen, applicationsCsv, setApplicationStatus, " +
-      "deleteApplication, clearApplications, renderApplications };"
+      "setApplicationName, deleteApplication, clearApplications, renderApplications };"
   );
   const api = w.__t;
   api.aggregate.graceMs = 20;
@@ -330,4 +331,122 @@ async function reopened(store, tabId) {
     SHARED.keys.applications === "applications",
     SHARED.keys.applications
   );
+
+  // ---- I. how the NAME is found ------------------------------------------
+  const logo = infoFor(
+    `<html><head><title>Apply</title></head><body>
+       <img src="x.png" alt="Acme Corporation logo" />
+     </body></html>`,
+    "https://jobs.example.com/apply/9"
+  );
+  t("I: the logo alt text names the employer", logo.company === "Acme Corporation", logo.company);
+
+  const vendorLogo = infoFor(
+    `<html><head><title>Apply</title></head><body>
+       <img src="x.png" alt="Greenhouse logo" />
+     </body></html>`,
+    "https://boards.greenhouse.io/acme/jobs/9"
+  );
+  t("I: a board's own logo is not the employer", vendorLogo.company === "", vendorLogo.company);
+
+  const vendorSite = infoFor(
+    `<html><head>
+       <title>Apply</title>
+       <meta property="og:site_name" content="Greenhouse" />
+     </head><body><img src="x.png" alt="Umbrella Corp logo" /></body></html>`,
+    "https://boards.greenhouse.io/acme/jobs/9"
+  );
+  t(
+    "I: a vendor og:site_name is SKIPPED, not the end of the chain",
+    vendorSite.company === "Umbrella Corp",
+    vendorSite.company
+  );
+
+  const noLogo = infoFor(
+    `<html><head><title>Apply</title></head><body><img src="x.png" alt="Team photo" /></body></html>`,
+    "https://jobs.example.com/apply/9"
+  );
+  t("I: an ordinary image alt is not a company", noLogo.company === "", JSON.stringify(noLogo.company));
+
+  // ---- J. the row is editable, and the layout cannot collapse -----------
+  const rows = openPopup({});
+  await sleep(60);
+  await rows.t.recordApplication({
+    company: "",
+    role: "",
+    url: "https://jobs.lever.co/embed/job_app",
+    host: "jobs.lever.co"
+  });
+  rows.t.renderApplications();
+  const row = rows.d.querySelector("#appRows .app-row");
+  t("J: a row is rendered", !!row);
+  t(
+    "J: with an editable company and role",
+    !!row.querySelector(".app-company") && !!row.querySelector(".app-role")
+  );
+  t(
+    "J: the date applied is shown",
+    /\d{4}/.test(row.querySelector(".app-meta").textContent),
+    row.querySelector(".app-meta").textContent.trim()
+  );
+  t(
+    "J: the host is shown when the name is unknown",
+    /jobs\.lever\.co/.test(row.querySelector(".app-meta").textContent)
+  );
+  t(
+    "J: a nameless row is still identifiable on hover",
+    /jobs\.lever\.co/.test(row.getAttribute("title") || ""),
+    row.getAttribute("title")
+  );
+  t(
+    "J: only a row with nothing at all says 'Unknown company'",
+    rows.t.describeApplication({}) === "Unknown company",
+    rows.t.describeApplication({})
+  );
+
+  // Typing a name fixes the row — the answer to "the page never told us".
+  const companyBox = row.querySelector(".app-company");
+  const roleBox = row.querySelector(".app-role");
+  companyBox.value = "Initech";
+  companyBox.dispatchEvent(new rows.w.Event("change"));
+  roleBox.value = "Data Scientist";
+  roleBox.dispatchEvent(new rows.w.Event("change"));
+  await sleep(30);
+  const saved = rows.store[APPS_KEY].items[0];
+  t("J: the typed company is stored", saved.company === "Initech", saved.company);
+  t("J: the typed role is stored", saved.role === "Data Scientist", saved.role);
+  t(
+    "J: and it survives a reload of the log",
+    (await rows.t.loadApplications(), rows.t.applicationState.items[0].company === "Initech")
+  );
+
+  // The reported bug: the global `select { width: 100% }` stretched the row's
+  // status control and squeezed the name to zero width.
+  const css = fs.readFileSync(path.join(APP_DIR, "ui.css"), "utf8");
+  const ruleFor = (selector) => {
+    const found = css.match(
+      new RegExp(selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*\\{([^}]*)\\}")
+    );
+    return found ? found[1] : "";
+  };
+  t(
+    "J: the row's status control is not full width",
+    /width:\s*auto/.test(ruleFor(".app-status")) && /flex:\s*0 0 auto/.test(ruleFor(".app-status")),
+    ruleFor(".app-status").trim()
+  );
+  t(
+    "J: the name column cannot be squeezed away",
+    /min-width/.test(ruleFor(".app-main")) && /flex:\s*1 1 auto/.test(ruleFor(".app-main")),
+    ruleFor(".app-main").trim()
+  );
+  t(
+    "J: the name inputs override the global width too",
+    /width:\s*auto/.test(ruleFor(".app-name input")),
+    ruleFor(".app-name input").trim()
+  );
+
+  console.log(
+    `\n${fail === 0 ? "TRACKER E2E PASS" : "TRACKER E2E FAIL"} (${pass} passed, ${fail} failed)`
+  );
+  process.exit(fail === 0 ? 0 : 1);
 })();

@@ -140,6 +140,29 @@
   }
 
   /**
+   * The employer's logo alt text: "Acme logo" -> "Acme". Only an image that
+   * actually says "logo" is used, so a random alt ("Team photo") cannot become
+   * the company name, and a board's own logo ("Greenhouse") is rejected like any
+   * other vendor word.
+   */
+  function logoCompany() {
+    for (const image of document.querySelectorAll("img[alt]")) {
+      const alt = clean(image.getAttribute("alt"));
+      if (!alt || alt.length > 60) continue;
+      if (!/\blogos?\b/i.test(alt)) continue;
+      const stripped = alt
+        .replace(/\blogos?\b/gi, "")
+        .replace(/\b(company|official|website|home)\b/gi, "")
+        .replace(/[\s\-–—|,.]+/g, " ")
+        .trim();
+      if (stripped.length >= 2 && stripped.length <= 60 && !isVendor(stripped)) {
+        return stripped;
+      }
+    }
+    return "";
+  }
+
+  /**
    * What this page is an application for.
    *
    * Returns null inside a subframe: the top frame owns the posting, and asking
@@ -162,12 +185,19 @@
     const ogTitle = metaContent("og:title");
     const fromOg = splitTitle(ogTitle);
 
-    const company =
-      clean(typeof org === "string" ? org : "") ||
-      metaContent("og:site_name") ||
-      labelledCompany() ||
-      fromOg.company ||
-      fromTitle.company;
+    // Every candidate is filtered as we go, so a board's own name ("Greenhouse")
+    // is SKIPPED rather than stopping the chain — otherwise a page that names
+    // only the vendor would end up with no company at all, even when its logo
+    // alt text names the employer.
+    const candidates = [
+      clean(typeof org === "string" ? org : ""),
+      metaContent("og:site_name"),
+      logoCompany(),
+      labelledCompany(),
+      fromOg.company,
+      fromTitle.company
+    ];
+    const company = candidates.find((value) => value && !isVendor(value)) || "";
 
     // og:title is a better guess than the <title> tag, which often carries the
     // board's own suffix ("Careers", "Jobs at …").
@@ -178,7 +208,7 @@
       fromTitle.role;
 
     return {
-      company: isVendor(company) ? "" : company,
+      company,
       role,
       url: location.href,
       host: location.hostname,

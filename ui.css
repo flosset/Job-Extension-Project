@@ -431,22 +431,48 @@
     /* --- Application log (options) ---------------------------------------- */
     .app-row {
       display: flex;
-      align-items: center;
-      gap: 8px;
+      align-items: flex-start;
+      gap: 10px;
       padding: 8px 10px;
       margin-bottom: 6px;
       border: 1px solid #e9ecf1;
       border-radius: 8px;
       background: #fcfdff;
     }
-    .app-main { flex: 1; min-width: 0; }
-    .app-title {
+    .app-main { flex: 1 1 auto; min-width: 220px; }
+
+    /* The name is the whole point of this list, so it is editable IN PLACE: a
+       page that never says which job it is can be fixed in one click instead of
+       being thrown away. */
+    .app-name { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; }
+    .app-name input {
+      flex: 1 1 130px;
+      width: auto;
+      min-width: 80px;
+      padding: 2px 4px;
+      font-size: 12px;
       font-weight: 600;
       color: #1f2937;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 5px;
+    }
+    .app-name input:hover { border-color: #e2e6ec; }
+    .app-name input:focus { border-color: #2563eb; background: #ffffff; }
+    .app-name input.app-role { font-weight: 500; color: #4b5563; }
+
+    .app-meta {
+      margin-top: 2px;
+      font-size: 11px;
+      color: #6b7280;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .app-meta { font-size: 11px; color: #8a909c; }
     .app-meta a { color: #2563eb; }
-    .app-status { flex: 0 0 auto; font-size: 11px; }
+
+    /* The global `input, select { width: 100% }` above also matches the controls
+       inside a row — a 100%-wide flex item stretches to the whole row and
+       squeezes the name to zero width. Pin them explicitly. */
+    .app-status { flex: 0 0 auto; width: auto; max-width: 120px; font-size: 11px; }
+    .app-row .snip-del { flex: 0 0 auto; }
