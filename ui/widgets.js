@@ -125,7 +125,8 @@ async function renderWidgetOffer() {
       "next time. Nothing is saved until you click Save." +
       (skipped
         ? ` ${skipped} widget${skipped === 1 ? "" : "s"} could not be learned ` +
-          "(its fields have no readable labels)."
+          "(its fields need readable labels, and a long free-text answer belongs " +
+          "in the answer bank instead)."
         : "");
   }
 }

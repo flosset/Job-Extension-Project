@@ -36,6 +36,13 @@
   const CANDIDATES_KEY = KEYS.widgetCandidates || "widgetCandidates";
   const FLUSH_MS = 600;
 
+  // A typed value longer than this is a per-application ANSWER, not widget data.
+  // A definition is scoped to the site's host, and a board like Greenhouse or
+  // Lever shares ONE host across every company, so a long answer saved here
+  // would be pasted verbatim into the next company's form. Those belong in the
+  // answer bank, which asks before it reuses them.
+  const MAX_LITERAL = 120;
+
   // Controls that are not free-form data.
   const SKIP_INPUT_TYPES = [
     "file", "password", "hidden", "checkbox", "radio", "submit", "button",
@@ -50,7 +57,6 @@
   const ADD_WORDS = ["add another", "add more", "add", "new"];
   const DOC_POSITION_FOLLOWING = 4;
 
-  let armed = false;
   let profile = {};
   let saved = [];              // saved recipes, for "we already know this widget"
   let flushTimer = null;
@@ -71,6 +77,28 @@
       'input, select, textarea, [contenteditable="true"], [contenteditable=""]',
       el
     );
+
+  /**
+   * A set of "fields we wrote", however the caller built it. Duck-typed rather
+   * than `instanceof Set`: the fill hands us a Set from the page's realm, but a
+   * caller in another realm (an isolated world, or a test harness) would build
+   * one that `instanceof` does not recognise, and we would forget every field
+   * the fill wrote — exactly the mistake this feature must never make.
+   */
+  function asSet(value) {
+    if (
+      value &&
+      typeof value.has === "function" &&
+      typeof value.forEach === "function"
+    ) {
+      return value;
+    }
+    try {
+      return new Set(value || []);
+    } catch (err) {
+      return new Set();
+    }
+  }
 
   /** The value a field currently holds, contenteditable included. */
   function valueOf(el) {
@@ -258,6 +286,10 @@
         continue; // unreadable — we cannot key a recipe by it
       }
       if (NEVER_LEARN.test(normalize(label))) return { skipped: label };
+      // Long free text is an answer for THIS application, not a widget value.
+      if (!profileKeyFor(label, text) && text.length > MAX_LITERAL) {
+        return { skipped: label };
+      }
       canonical.push({ label, keyword: keyOf(label), text });
     }
     // "Sure it is a widget": one field is a field, two are a widget we can learn.
@@ -438,20 +470,44 @@
     await writeCandidate(best);
   }
 
-  /** Watch the fields this fill left, and learn any widget you fill by hand. */
+  /**
+   * Watch the fields this fill left, and learn any widget you fill by hand.
+   *
+   * There is ONE watcher per PAGE, never one per fill. A Fill re-injects these
+   * scripts, so a second copy would otherwise stack a second pair of listeners
+   * on top of the first — and the first copy's `mine` set is from the PREVIOUS
+   * fill, so it would read the new fill's own writes as your typing, and its
+   * `saved` list would be stale enough to re-offer a widget you just saved.
+   * The first copy to arm keeps the listeners; every later fill only refreshes
+   * what that single watcher knows.
+   */
   JA.armWidgetLearning = function (filledByUs) {
-    if (armed) return; // one watcher per frame per page load
-    armed = true;
+    const filled = asSet(filledByUs);
+    const watch = (JA.__widgetWatch = JA.__widgetWatch || {});
+    if (watch.update) {
+      watch.update(filled);
+      return;
+    }
 
     // A field the fill itself wrote is not "something you typed", so it can
     // never be part of a learned widget.
-    mine = filledByUs instanceof Set ? filledByUs : new Set();
+    mine = filled;
 
     document.addEventListener("change", onCommitted, true);
     document.addEventListener("blur", onCommitted, true);
+    watch.update = (nextMine) => {
+      mine = asSet(nextMine);
+      loadKnown(); // a widget saved since the last fill must be recognised
+    };
+    loadKnown();
+  };
 
-    // Load what we already know, so a widget is never offered twice, and load
-    // the profile so a value that IS a profile value binds to it.
+  /**
+   * Load what we already know, so a widget is never offered twice, and load the
+   * profile so a value that IS a profile value binds to it. Re-run by the single
+   * watcher on every fill so `saved` can never go stale.
+   */
+  function loadKnown() {
     try {
       const reading = chrome.storage.local.get([PROFILE_KEY, RECIPES_KEY]);
       if (reading && typeof reading.then === "function") {
@@ -468,7 +524,7 @@
     } catch (err) {
       /* learning is best-effort by design */
     }
-  };
+  }
 
   function onCommitted(event) {
     const el = event && event.target;

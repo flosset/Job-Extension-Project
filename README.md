@@ -120,14 +120,15 @@ tabs, six hours) so it survives closing the popup. It holds field labels only.
 The **application log** and the **named profiles** are user data too: the log
 holds the company, role, URL and date of each application, and each profile holds
 its own copy of everything, including its resume. `Delete all` removes the
-profile, the named profiles, the learned candidates, the remembered field lists
-and the application log in one go. Nothing is ever sent anywhere, and the tracker
+profile, the named profiles, the learned candidates, the remembered field lists,
+the widgets you taught me (which hold other people's details) and the application
+log in one go. Nothing is ever sent anywhere, and the tracker
 only records a page you actually pressed Fill on.
 
 
-`Export data` writes your profile (including the resume) to a JSON file — that
-file contains personal details, so keep it somewhere safe. `Delete all` wipes
-everything from the browser.
+`Export data` writes your profile (including the resume) and the widgets you
+taught me to a JSON file — that file contains personal details, so keep it
+somewhere safe. `Delete all` wipes everything from the browser.
 
 ## Install (unpacked)
 
@@ -260,6 +261,12 @@ It only offers a widget when it is *sure*: a repeated group, ≥2 fields **you**
 typed into (a field the fill wrote never counts), and ≥2 of those with readable
 labels. A widget whose fields have no labels is refused and the reason is shown —
 a definition keyed by position or a React id would rot on the next deploy.
+
+A long free-text answer is refused too. A definition belongs to the site's
+**host**, and boards like Greenhouse and Lever share one host across every
+company, so a paragraph written for one application would be pasted verbatim into
+the next company's form. Paragraphs belong in the answer bank, which asks before
+it reuses them.
 
 Each field's value comes from one of exactly two places:
 

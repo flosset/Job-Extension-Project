@@ -102,7 +102,7 @@ const SOURCE_PROFILE = {
   // --- B. Envelope shape ---------------------------------------------------
   const env = JSON.parse(text);
   t("B: envelope format tag", env.format === "job-autofill-profile", env.format);
-  t("B: envelope version", env.version === 1, env.version);
+  t("B: envelope version", env.version === 2, env.version);
   t("B: envelope carries the profile", !!env.profile);
 
   // --- C. Tolerant import --------------------------------------------------
@@ -203,7 +203,11 @@ const SOURCE_PROFILE = {
       removedKey.indexOf("learnedAnswers") >= 0 &&
       removedKey.indexOf("lastRuns") >= 0 &&
       removedKey.indexOf("jobProfiles") >= 0 &&
-      removedKey.indexOf("applications") >= 0,
+      removedKey.indexOf("applications") >= 0 &&
+      // The widgets you taught us hold other people's names/emails/phones as
+      // plain text, so "Delete all" MUST take them too.
+      removedKey.indexOf("jobRecipes") >= 0 &&
+      removedKey.indexOf("widgetCandidates") >= 0,
     JSON.stringify(removedKey)
   );
   t("H: delete-all cleared the form", $("firstName").value === "");

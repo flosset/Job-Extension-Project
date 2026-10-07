@@ -474,7 +474,7 @@ function openOptionsPage() {
 // The data is local-only, so the user needs a backup path and a wipe button.
 
 const EXPORT_FORMAT = "job-autofill-profile";
-const EXPORT_VERSION = 1;
+const EXPORT_VERSION = 2;
 
 /** Keep only the keys we understand, with the types we expect. */
 function sanitizeProfile(raw) {
@@ -540,22 +540,31 @@ function sanitizeProfile(raw) {
   return out;
 }
 
-/** The export file's text (pure, so it can be tested without a download). */
-function buildExportText(profile) {
-  return JSON.stringify(
-    {
-      format: EXPORT_FORMAT,
-      version: EXPORT_VERSION,
-      exportedAt: new Date().toISOString(),
-      profile: sanitizeProfile(profile)
-    },
-    null,
-    2
-  );
+/**
+ * The export file's text (pure, so it can be tested without a download). The
+ * saved widgets ride along, so moving to a new machine does not throw away what
+ * you taught it — they carry other people's details, so the same "keep this file
+ * safe" advice applies to the whole file.
+ */
+function buildExportText(profile, widgets) {
+  const out = {
+    format: EXPORT_FORMAT,
+    version: EXPORT_VERSION,
+    exportedAt: new Date().toISOString(),
+    profile: sanitizeProfile(profile)
+  };
+  const items = JOB_AUTOFILL_SHARED.sanitizeRecipes(
+    widgets && typeof widgets === "object" ? widgets : { items: [] }
+  ).items;
+  if (items.length) out.widgets = items;
+  return JSON.stringify(out, null, 2);
 }
 
-/** Parse imported text into a profile, or throw a friendly Error. */
-function parseImportText(text) {
+/**
+ * Parse imported text into the profile AND the widgets it carries, or throw a
+ * friendly Error. An older or hand-written file simply carries no widgets.
+ */
+function parseImportRecords(text) {
   let data;
   try {
     data = JSON.parse(text);
@@ -570,7 +579,15 @@ function parseImportText(text) {
   if (Object.keys(profile).length === 0) {
     throw new Error("That file does not contain a profile.");
   }
-  return profile;
+  const widgets = JOB_AUTOFILL_SHARED.sanitizeRecipes(
+    data.widgets && typeof data.widgets === "object" ? data.widgets : { items: [] }
+  ).items;
+  return { profile, widgets };
+}
+
+/** Parse imported text into a profile, or throw a friendly Error. */
+function parseImportText(text) {
+  return parseImportRecords(text).profile;
 }
 
 /** Push a profile object into the form (no storage write). */
@@ -599,10 +616,17 @@ async function applyProfile(profile) {
   fillFormFromProfile(profile);
 }
 
-/** Download the form's current contents as a JSON file. */
-function exportProfile() {
+/** Download the form's current contents (and the saved widgets) as JSON. */
+async function exportProfile() {
+  let widgets = { items: [] };
   try {
-    const blob = new Blob([buildExportText(readForm())], {
+    const data = await chrome.storage.local.get(RECIPES_KEY);
+    widgets = JOB_AUTOFILL_SHARED.sanitizeRecipes(data && data[RECIPES_KEY]);
+  } catch (err) {
+    /* export the profile even if the widgets cannot be read */
+  }
+  try {
+    const blob = new Blob([buildExportText(readForm(), widgets)], {
       type: "application/json"
     });
     const url = URL.createObjectURL(blob);
@@ -625,7 +649,7 @@ async function onImportFilePicked() {
   const file = input && input.files && input.files[0];
   if (!file) return;
   try {
-    const profile = parseImportText(await file.text());
+    const records = parseImportRecords(await file.text());
     const proceed =
       typeof window.confirm !== "function" ||
       window.confirm("Replace everything in this browser with the imported profile?");
@@ -633,8 +657,24 @@ async function onImportFilePicked() {
       setStatus("Import cancelled — nothing changed.", "warn");
       return;
     }
-    await applyProfile(profile);
-    setStatus("Imported. Check the fields above, then fill.", "ok");
+    await applyProfile(records.profile);
+    // A file with no widgets leaves the widgets you already have alone; a file
+    // that carries them restores them, so a reinstall loses nothing.
+    if (records.widgets.length) {
+      await chrome.storage.local.set({
+        [RECIPES_KEY]: { items: records.widgets }
+      });
+    }
+    setStatus(
+      records.widgets.length
+        ? "Imported your profile and " +
+            records.widgets.length +
+            " remembered widget" +
+            (records.widgets.length === 1 ? "" : "s") +
+            ". Check the fields above, then fill."
+        : "Imported. Check the fields above, then fill.",
+      "ok"
+    );
   } catch (err) {
     setStatus((err && err.message) || "Could not import that file.", "warn");
   } finally {
@@ -648,8 +688,8 @@ async function deleteAllData() {
     typeof window.confirm !== "function" ||
     window.confirm(
       "Delete everything?\n\n" +
-        "Your profile, resume file, work history and saved answers will be " +
-        "removed from this browser. This cannot be undone."
+        "Your profile, resume file, work history, saved answers and any widgets " +
+        "you taught me will be removed from this browser. This cannot be undone."
     );
   if (!proceed) {
     setStatus("Delete cancelled — nothing changed.", "warn");
@@ -658,13 +698,17 @@ async function deleteAllData() {
   try {
     // Everything this extension stored: the profile, the named profiles (each
     // carrying its own resume), anything learned from typing, the remembered
-    // "fields left for you" lists, and the application log.
+    // "fields left for you" lists, the application log, and the widgets the user
+    // taught us — including the OTHER PEOPLE'S details (names, emails, phones)
+    // a learned References block holds as plain text. All of it goes.
     await chrome.storage.local.remove([
       STORAGE_KEY,
       LEARNED_KEY,
       RUNS_KEY,
       PROFILES_KEY,
-      APPS_KEY
+      APPS_KEY,
+      RECIPES_KEY,
+      WIDGET_CANDIDATES_KEY
     ]);
   } catch (err) {
     setStatus("Could not clear local storage.", "warn");

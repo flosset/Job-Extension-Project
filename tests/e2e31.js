@@ -398,7 +398,10 @@ const slugForKeyword = (recipe, keyword) =>
         ]
       }
     };
-    w.eval(POPUP_JS);
+    w.eval(
+      POPUP_JS +
+        "\n;window.__t = { buildExportText, parseImportRecords, parseImportText };"
+    );
     w.document.dispatchEvent(new w.Event("DOMContentLoaded"));
     return { w, d: w.document, store };
   }
@@ -453,6 +456,70 @@ const slugForKeyword = (recipe, keyword) =>
   t("I: deleting forgets it", (uiStore.jobRecipes.items || []).length === 0);
   t("I: 'None yet.' comes back", O.d.getElementById("recipeEmpty").hidden === false);
   t("I: and it says so", /Forgotten/.test(O.d.getElementById("status").textContent));
+
+  // ---- J. a SECOND fill (scripts re-injected) must not stack a watcher -----
+  // Every Fill re-injects the content scripts. A second copy must REFRESH the
+  // one watcher, never add another: the first copy's `mine` is from the earlier
+  // fill, so a stacked listener would read the NEW fill's own writes as typing.
+  const J = await pageWith({ firstName: "Jane" });
+  J.w.eval(CONTENT_SRC); // the second Fill re-injects the same files
+  await J.w.__jobAutofillRun; // ...and its own fill finishes
+  // Simulate the second fill having written these two fields.
+  J.JA.armWidgetLearning(new Set([id(J, "refName0"), id(J, "refEmail0")]));
+  commit(J.w, id(J, "refName0"), "Written By The Fill");
+  commit(J.w, id(J, "refEmail0"), "fill@example.com");
+  await sleep(900);
+  t(
+    "J: a re-injection does not read the fill's writes as typing",
+    ((J.store.widgetCandidates || {}).candidates || []).length === 0,
+    JSON.stringify((J.store.widgetCandidates || {}).candidates || null)
+  );
+
+  // ...but a genuinely hand-typed field is still learned — exactly once.
+  commit(J.w, id(J, "refName1"), "Alice Jones");
+  commit(J.w, id(J, "refEmail1"), "alice@corp.com");
+  await sleep(900);
+  const jCands = (J.store.widgetCandidates || {}).candidates || [];
+  t("J: a genuine hand-fill is still learned once", jCands.length === 1, jCands.length);
+
+  // ---- K. a long free-text answer is refused, not leaked across companies ---
+  // boards.greenhouse.io is ONE host for every company, so a paragraph saved in
+  // a widget there would be pasted into the next company's form. Refuse it.
+  const K = await pageWith({ firstName: "Jane" });
+  commit(K.w, id(K, "refName0"), "Bob Smith");
+  commit(K.w, id(K, "refEmail0"), "X".repeat(140));
+  await sleep(900);
+  t(
+    "K: a long free-text answer is not learned as a widget",
+    ((K.store.widgetCandidates || {}).candidates || []).length === 0
+  );
+  t(
+    "K: and the refusal is reported",
+    ((K.store.widgetCandidates || {}).skipped || []).length >= 1
+  );
+
+  // ---- L. export / import carries the saved widgets ------------------------
+  const L = openWidgetPage(
+    {
+      jobProfile: { firstName: "Jane" },
+      jobRecipes: { items: [JSON.parse(JSON.stringify(saved))] }
+    },
+    "options"
+  );
+  await sleep(60);
+  const exported = L.w.__t.buildExportText({ firstName: "Jane" }, L.store.jobRecipes);
+  const imported = L.w.__t.parseImportRecords(exported);
+  t("L: the export carries the saved widgets", imported.widgets.length === 1, imported.widgets.length);
+  t(
+    "L: with their host and rows intact",
+    !!imported.widgets[0] &&
+      imported.widgets[0].host === "boards.example.com" &&
+      imported.widgets[0].rows.length === 2
+  );
+  const profileOnly = L.w.__t.parseImportRecords(
+    L.w.__t.buildExportText({ firstName: "Jane" }, { items: [] })
+  );
+  t("L: a profile-only export carries no widgets", profileOnly.widgets.length === 0);
 
   console.log(
     `\n${fail === 0 ? "REMEMBER-WIDGET E2E PASS" : "REMEMBER-WIDGET E2E FAIL"} (${pass} passed, ${fail} failed)`

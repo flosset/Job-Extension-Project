@@ -44,8 +44,7 @@
     "image", "range", "color"
   ];
 
-  let armed = false;
-  const byRef = new Map();      // data-ja-ref        -> the unfilled entry
+  let byRef = new Map();      // data-ja-ref        -> the unfilled entry
   const byQuestion = new Map(); // normalized question -> the unfilled entry
   const answers = new Map();    // normalized question -> {question, value, site, at}
   const ambiguous = new Map();  // normalized question -> the readable question
@@ -281,28 +280,50 @@
   }
 
   /**
-   * Watch the fields this fill left for the user. Called once per frame by
+   * Watch the fields this fill left for the user. Called once per fill by
    * autofill.js with the unfilled entries it just reported.
+   *
+   * ONE watcher per PAGE, never one per fill: a Fill re-injects these scripts,
+   * so stacking a second set of listeners would double every sighting and leave
+   * the old set holding a previous page's state. The first copy to have
+   * something to watch keeps the listeners; later fills only add to what it
+   * knows.
    */
   JA.armLearning = function (entries) {
-    if (armed) return; // one watcher per frame per page load
-    armed = true;
-
-    for (const entry of Array.isArray(entries) ? entries : []) {
-      if (!entry || typeof entry.label !== "string" || !entry.label) continue;
-      const tracked = { label: entry.label, required: !!entry.required };
-      if (entry.ref) byRef.set(entry.ref, tracked);
-      const key = keyOf(entry.label);
-      if (key && !byQuestion.has(key)) byQuestion.set(key, tracked);
+    const watch = (JA.__learnWatch = JA.__learnWatch || {});
+    if (watch.update) {
+      watch.update(entries);
+      return;
     }
-    if (byRef.size === 0 && byQuestion.size === 0) return;
+    if (!track(entries)) return; // nothing to watch yet — arm when there is
 
     // Delegated + capture phase: a portal that replaces an input mid-form still
     // reports the change, and we never depend on holding the node ourselves.
     document.addEventListener("change", onChange, true);
     document.addEventListener("blur", onChange, true);
     refreshBank();
+
+    watch.update = (next) => {
+      track(next);
+      refreshBank();
+    };
   };
+
+  /**
+   * Remember the questions in `entries`. A question already tracked keeps its
+   * place, so a later fill never overwrites one the user has not reviewed.
+   * Returns whether there is anything to watch at all.
+   */
+  function track(entries) {
+    for (const entry of Array.isArray(entries) ? entries : []) {
+      if (!entry || typeof entry.label !== "string" || !entry.label) continue;
+      const tracked = { label: entry.label, required: !!entry.required };
+      if (entry.ref && !byRef.has(entry.ref)) byRef.set(entry.ref, tracked);
+      const key = keyOf(entry.label);
+      if (key && !byQuestion.has(key)) byQuestion.set(key, tracked);
+    }
+    return byRef.size > 0 || byQuestion.size > 0;
+  }
 
   // Exposed so a test can await the debounced write instead of guessing at it.
   JA.learningPending = () => flushTimer !== null;
