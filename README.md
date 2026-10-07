@@ -26,13 +26,14 @@ no telemetry, no accounts.
 - **Alt+Shift+F** fills the page without opening the popup — handy on multi-page
   Workday forms — and the toolbar badge reports the result.
 - **Keeps an application log.** Pressing Fill on a posting records the company,
-  role, URL and date, and a page you have applied to before is **warned about
-  before you fill it again** — so a 100-application search never repeats work.
+  role, URL and date **as \"in progress\"** — filling a form is not submitting it,
+  and one click marks a row **applied** once you have. A page you have applied to
+  before is **warned about** too — so a 100-application search never repeats work.
   When the page does not say which job it is, the popup **asks** — "Which job is
   this?" — rather than filing a nameless row; whatever the page did give is
   prefilled, and every row's name stays editable afterwards. A status per row
-  (applied / screen / interview / offer / rejected / withdrawn) and a CSV export
-  live on the options page.
+  (saved / in progress / applied / screen / interview / offer / rejected /
+  withdrawn) and a CSV export live on the options page.
 - **Multiple profiles.** Keep a Frontend resume and a Full-stack one (or a US and
   a UK address) and pick one per application from the popup.
 - **Cover-letter templates** with `{company}` / `{role}` / `{firstName}` /

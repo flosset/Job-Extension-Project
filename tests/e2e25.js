@@ -198,7 +198,7 @@ async function reopened(store, tabId) {
   t("B: with the company", logged.items[0].company === "Acme Corp", logged.items[0].company);
   t("B: with the role", logged.items[0].role === "Senior Frontend Engineer");
   t("B: with a date", typeof logged.items[0].at === "number" && logged.items[0].at > 0);
-  t("B: status starts at 'applied'", logged.items[0].status === "applied", logged.items[0].status);
+  t("B: status starts as 'in progress'", logged.items[0].status === "in progress", logged.items[0].status);
   t("B: counted once", logged.items[0].times === 1, logged.items[0].times);
   t(
     "B: the popup says it logged it",
@@ -317,6 +317,11 @@ async function reopened(store, tabId) {
   t(
     "G: an unknown status is refused",
     (await popup.t.setApplicationStatus(first.id, "nonsense")) === false
+  );
+  t(
+    "G: a record with no status sanitises to 'in progress'",
+    SHARED.sanitizeApplications({ items: [{ company: "X", role: "Y" }] }).items[0]
+      .status === "in progress"
   );
 
   await popup.t.deleteApplication(first.id);
@@ -468,6 +473,27 @@ async function reopened(store, tabId) {
     "J: only a row with nothing at all says 'Unknown company'",
     rows.t.describeApplication({}) === "Unknown company",
     rows.t.describeApplication({})
+  );
+
+  // Fill means you STARTED an application, not that you submitted it. The row
+  // must say so, and one click is how you say you submitted it.
+  t(
+    "J: a fresh row is 'in progress', not 'applied'",
+    row.querySelector(".app-status").value === "in progress",
+    row.querySelector(".app-status").value
+  );
+  const markBtn = row.querySelector(".app-mark");
+  t("J: with a one-click 'Mark applied' button", !!markBtn);
+  if (markBtn) markBtn.click();
+  await sleep(30);
+  t(
+    "J: which records the application as applied",
+    rows.store[APPS_KEY].items[0].status === "applied",
+    rows.store[APPS_KEY].items[0].status
+  );
+  t(
+    "J: and the button is gone once applied",
+    !rows.d.querySelector("#appRows .app-row .app-mark")
   );
 
   // Typing a name fixes the row â€” the answer to "the page never told us".

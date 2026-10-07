@@ -92,7 +92,9 @@ async function recordApplication(page) {
     at: now,
     lastAt: now,
     times: 1,
-    status: "applied"
+    // You pressed Fill — you STARTED this application. Whether you submitted it
+    // is something only you know, so it is "in progress" until you say applied.
+    status: JOB_AUTOFILL_SHARED.initialApplicationStatus || "in progress"
   };
   applicationState.items.unshift(entry);
   if (applicationState.items.length > JOB_AUTOFILL_SHARED.maxApplications) {
@@ -333,6 +335,23 @@ function renderApplications() {
 
     row.appendChild(main);
     row.appendChild(status);
+
+    // One click to say "I submitted this". Only the user can know, so it is a
+    // button rather than something we infer, and it disappears once the status
+    // is already past that point.
+    if (JOB_AUTOFILL_SHARED.appliedStatuses.indexOf(entry.status) === -1) {
+      const mark = document.createElement("button");
+      mark.type = "button";
+      mark.className = "app-mark";
+      mark.textContent = "Mark applied";
+      mark.title = "You submitted this application — move it out of \"in progress\"";
+      mark.addEventListener("click", async () => {
+        await setApplicationStatus(entry.id, "applied");
+        renderApplications();
+      });
+      row.appendChild(mark);
+    }
+
     row.appendChild(remove);
     container.appendChild(row);
   }

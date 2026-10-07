@@ -521,4 +521,16 @@
        inside a row — a 100%-wide flex item stretches to the whole row and
        squeezes the name to zero width. Pin them explicitly. */
     .app-status { flex: 0 0 auto; width: auto; max-width: 120px; font-size: 11px; }
+    .app-mark {
+      flex: 0 0 auto;
+      width: auto;
+      font-size: 11px;
+      padding: 3px 7px;
+      border: 1px solid #bfe3cb;
+      border-radius: 6px;
+      background: #f1fbf4;
+      color: #0b7a3b;
+      cursor: pointer;
+    }
+    .app-mark:hover { background: #e3f7ea; }
     .app-row .snip-del { flex: 0 0 auto; }

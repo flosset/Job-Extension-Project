@@ -195,7 +195,7 @@ const aggregate = {
     if (duplicate) {
       notes.push(`⚠️ Already applied here on ${formatWhen(duplicate.at)}.`);
     } else if (willLog) {
-      notes.push("📋 Logged to your applications.");
+      notes.push("📋 Logged to your applications — mark it applied once you submit.");
     }
     if (missing) notes.push(missing.trim());
 

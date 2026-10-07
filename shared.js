@@ -344,7 +344,27 @@ var JOB_AUTOFILL_SHARED = {
   },
 
   /** The pipeline states an application can be in. */
-  applicationStatuses: ["applied", "screen", "interview", "offer", "rejected", "withdrawn"],
+  applicationStatuses: [
+    "saved",
+    "in progress",
+    "applied",
+    "screen",
+    "interview",
+    "offer",
+    "rejected",
+    "withdrawn"
+  ],
+
+  /**
+   * What a freshly logged application is. Pressing Fill means you STARTED an
+   * application, not that you submitted it — so it is "in progress" until you
+   * say otherwise. Recording "applied" here would make the log lie, and any
+   * duplicate warning built on that lie is worse than no warning.
+   */
+  initialApplicationStatus: "in progress",
+
+  /** States that mean "you have submitted" — past the "Mark applied" point. */
+  appliedStatuses: ["applied", "screen", "interview", "offer", "rejected", "withdrawn"],
 
   /**
    * Coerce stored applications into the exact shape the UI renders, collapsing
@@ -379,7 +399,9 @@ var JOB_AUTOFILL_SHARED = {
         at: typeof e.at === "number" && e.at > 0 ? e.at : 0,
         lastAt: typeof e.lastAt === "number" && e.lastAt > 0 ? e.lastAt : 0,
         times: typeof e.times === "number" && e.times > 0 ? Math.min(e.times, 999) : 1,
-        status: this.applicationStatuses.indexOf(e.status) === -1 ? "applied" : e.status
+        status: this.applicationStatuses.indexOf(e.status) === -1
+          ? this.initialApplicationStatus
+          : e.status
       };
       if (!entry.lastAt) entry.lastAt = entry.at;
 
