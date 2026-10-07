@@ -48,21 +48,41 @@ The **date is always exact** — it is when you pressed Fill. The **name** comes
 from whatever the page is willing to say, in this order:
 
 1. the `schema.org/JobPosting` JSON-LD block (`hiringOrganization` + `title`) —
-   what Greenhouse, Lever, Ashby, Workable and most boards publish, and the only
-   fully reliable source;
+   the only fully reliable source;
 2. `og:site_name`, the employer's **logo alt text** ("Acme logo" → "Acme"), or a
    `company` / `employer` heading;
-3. the page title, split as "Role - Company" or "Role at Company" (a board's own
-   name is never taken as the employer);
-4. an `<h1>` for the role.
+3. the page title, split as "Role - Company" or "Role at Company";
+4. an `<h1>` for the role;
+5. **the URL itself**, as a last resort — see below.
 
-An ATS vendor's own name is always skipped rather than used: a wrong company
-would fire the duplicate warning on every posting from that board.
+An ATS vendor's own name is always skipped rather than used ("Greenhouse",
+"Lever", …), and a trailing site word is stripped ("NVIDIA Careers" → "NVIDIA"),
+because a wrong company would fire the duplicate warning on every posting from
+that board.
 
-When the form sits on a *different* page than the posting — a bare `/apply` link
-with no metadata — there may be nothing to read. The row then shows the site host
-instead of a name, and the name is one click away, because **both fields are
-editable inline**.
+### Which boards name the employer in the URL
+
+Plenty of boards put the employer's own identifier in the URL, which is a good
+last resort when the page itself says nothing:
+
+| Board | Where the name lives | Example |
+|---|---|---|
+| Workday | tenant subdomain | `nvidia.wd5.myworkdayjobs.com` → **Nvidia** |
+| Taleo | tenant subdomain | `acme.taleo.net/…` → **Acme** |
+| iCIMS | tenant subdomain | `careers-acme.icims.com/…` → **Acme** |
+| BambooHR | tenant subdomain | `acme.bamboohr.com/careers/42` → **Acme** |
+| Greenhouse | first path segment | `job-boards.greenhouse.io/acme/jobs/4` → **Acme** |
+| Lever | first path segment | `jobs.lever.co/globex/abc` → **Globex** |
+| Workable | first path segment | `apply.workable.com/initech/j/…` → **Initech** |
+| SmartRecruiters | first path segment | `jobs.smartrecruiters.com/Hooli/…` → **Hooli** |
+| Ashby / Jobvite / Teamtailor | first path segment | `jobs.ashbyhq.com/dunder-mifflin/…` → **Dunder Mifflin** |
+
+Structure words (`embed`, `jobs`, `apply`, `careers`, `v1`, …) and anything
+containing a digit (`career5`, `wd5`) are rejected, so a URL can never produce a
+bogus employer. A page that *does* name itself always wins over its URL.
+
+When nothing at all can be found, the row shows the site host and the name is one
+click away, because **both fields are editable inline**.
 
 ## Privacy
 

@@ -163,6 +163,115 @@
   }
 
   /**
+   * A trailing site word is not part of a company name: "NVIDIA Careers",
+   * "Acme Job Board" and "Globex Careers Site" all name the company first.
+   */
+  function stripSiteWords(text) {
+    let out = clean(text);
+    if (!out) return "";
+    const tails = [
+      "careers site", "career site", "careers portal", "career portal",
+      "job board", "job search", "careers", "career", "jobs", "job",
+      "hiring", "recruitment", "recruiting", "talent", "site", "portal"
+    ];
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const tail of tails) {
+        const pattern = new RegExp("\\s+" + tail.replace(/ /g, "\\s+") + "\\s*$", "i");
+        if (pattern.test(out)) {
+          out = out.replace(pattern, "").trim();
+          changed = true;
+        }
+      }
+    }
+    return out;
+  }
+
+  // Hosts where the employer is named in the URL itself, and where that is
+  // reliable enough to use as a LAST resort. `host` reads the tenant subdomain
+  // (nvidia.wd5.myworkdayjobs.com); `path` reads the first path segment
+  // (job-boards.greenhouse.io/acme/jobs/1).
+  const TENANT_HOSTS = [
+    { re: /(^|\.)myworkdayjobs\.com$/i, from: "host" },
+    { re: /(^|\.)myworkday\.com$/i, from: "host" },
+    { re: /(^|\.)workday\.com$/i, from: "host" },
+    { re: /(^|\.)taleo\.net$/i, from: "host" },
+    { re: /(^|\.)icims\.com$/i, from: "host" },
+    { re: /(^|\.)bamboohr\.com$/i, from: "host" },
+    { re: /(^|\.)breezy\.hr$/i, from: "host" },
+    { re: /(^|\.)recruitee\.com$/i, from: "host" },
+    { re: /(^|\.)applytojob\.com$/i, from: "host" },
+    { re: /(^|\.)jazzhr\.com$/i, from: "host" },
+    { re: /(^|\.)recruiterbox\.com$/i, from: "host" },
+    { re: /(^|\.)teamtailor\.com$/i, from: "host" },
+    { re: /(^|\.)applicantstack\.com$/i, from: "host" },
+    { re: /(^|\.)ultipro\.com$/i, from: "host" },
+    { re: /(^|\.)personio\.com$/i, from: "host" },
+    { re: /(^|\.)successfactors\.(com|eu)$/i, from: "host" },
+    { re: /(^|\.)sapsf\.(com|eu)$/i, from: "host" },
+    { re: /(^|\.)greenhouse\.io$/i, from: "path" },
+    { re: /(^|\.)lever\.co$/i, from: "path" },
+    { re: /(^|\.)workable\.com$/i, from: "path" },
+    { re: /(^|\.)smartrecruiters\.com$/i, from: "path" },
+    { re: /(^|\.)ashbyhq\.com$/i, from: "path" },
+    { re: /(^|\.)jobvite\.com$/i, from: "path" }
+  ];
+
+  /** URL words that are structures, not employers. */
+  const RESERVED_URL_WORDS = [
+    "www", "web", "jobs", "job", "jobboard", "careers", "career", "apply",
+    "application", "applications", "app", "embed", "board", "boards", "portal",
+    "search", "login", "signin", "register", "profile", "account", "external",
+    "internal", "corporate", "home", "index", "en", "us", "uk", "eu", "v1", "v2",
+    "api", "ats", "static", "assets", "media", "talent", "hiring", "recruiting",
+    "recruitment", "sites", "site", "pages", "page", "view", "openings",
+    "jobsearch", "careersection", "jobapp", "candidate", "my"
+  ];
+
+  /**
+   * The employer's own identifier from the URL, for the boards that put it there.
+   *
+   * Only alphabetic tokens survive: a token with a digit is a tenant
+   * environment or an id ("career5", "wd5"), not a company. This is the LAST
+   * resort — it is only reached when the page itself named nothing.
+   */
+  function companyFromUrl() {
+    let url = null;
+    try {
+      url = new URL(location.href);
+    } catch (err) {
+      return "";
+    }
+    const host = String(url.hostname || "").toLowerCase();
+    let source = "";
+    for (const rule of TENANT_HOSTS) {
+      if (!rule.re.test(host)) continue;
+      source = rule.from === "host"
+        ? host.split(".")[0]
+        : url.pathname.split("/").filter(Boolean)[0] || "";
+      break;
+    }
+    if (!source) return "";
+    try {
+      source = decodeURIComponent(source);
+    } catch (err) {
+      /* keep the raw text */
+    }
+    const words = source
+      .toLowerCase()
+      .split(/[-_.+]+/)
+      .map((word) => word.replace(/[^a-z0-9]/g, ""))
+      .filter((word) => /^[a-z]{2,}$/.test(word))
+      .filter((word) => RESERVED_URL_WORDS.indexOf(word) === -1);
+    if (words.length === 0) return "";
+    return words
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
+      .slice(0, 80);
+  }
+
+  /**
    * What this page is an application for.
    *
    * Returns null inside a subframe: the top frame owns the posting, and asking
@@ -191,11 +300,18 @@
     // alt text names the employer.
     const candidates = [
       clean(typeof org === "string" ? org : ""),
-      metaContent("og:site_name"),
+      stripSiteWords(metaContent("og:site_name")),
       logoCompany(),
-      labelledCompany(),
-      fromOg.company,
-      fromTitle.company
+      stripSiteWords(labelledCompany()),
+      stripSiteWords(fromOg.company),
+      stripSiteWords(fromTitle.company),
+      // LAST resort: the board's own URL. For Workday (nvidia.wd5…), Taleo,
+      // iCIMS and BambooHR the tenant subdomain IS the employer; for
+      // Greenhouse/Lever/Workable/Ashby it is the first path segment. Structure
+      // words and anything containing a digit ("wd5", "career5") are rejected,
+      // so a guess can never become a bogus company that fires false duplicate
+      // warnings — and the field is editable in any case.
+      companyFromUrl()
     ];
     const company = candidates.find((value) => value && !isVendor(value)) || "";
 

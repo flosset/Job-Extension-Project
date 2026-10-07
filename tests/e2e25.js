@@ -151,20 +151,18 @@ async function reopened(store, tabId) {
     at.role + "/" + at.company
   );
 
-  const hostOnly = infoFor(
+  const slugOnly = infoFor(
     `<html><head><title>Job Application</title></head><body><h1>Apply</h1></body></html>`,
     "https://boards.greenhouse.io/acme/jobs/9"
   );
-  t(
-    "A: with only the ATS hostname, the company stays EMPTY",
-    hostOnly.company === "",
-    hostOnly.company
+  t("A: the URL's own slug is a last-resort company", slugOnly.company === "Acme", slugOnly.company);
+  t("A: ...and the host is recorded too", slugOnly.host === "boards.greenhouse.io", slugOnly.host);
+
+  const noSlug = infoFor(
+    `<html><head><title>Job Application</title></head><body><h1>Apply</h1></body></html>`,
+    "https://boards.greenhouse.io/embed/job_app?for=acme"
   );
-  t(
-    "A: ...but the host is still recorded",
-    hostOnly.host === "boards.greenhouse.io",
-    hostOnly.host
-  );
+  t("A: ...but a structure word is never a company", noSlug.company === "", JSON.stringify(noSlug.company));
 
   const ogTitle = infoFor(
     `<html><head><title>Careers</title>
@@ -345,9 +343,21 @@ async function reopened(store, tabId) {
     `<html><head><title>Apply</title></head><body>
        <img src="x.png" alt="Greenhouse logo" />
      </body></html>`,
-    "https://boards.greenhouse.io/acme/jobs/9"
+    "https://jobs.example.com/apply/9"
   );
   t("I: a board's own logo is not the employer", vendorLogo.company === "", vendorLogo.company);
+
+  const vendorLogoRealBoard = infoFor(
+    `<html><head><title>Apply</title></head><body>
+       <img src="x.png" alt="Greenhouse logo" />
+     </body></html>`,
+    "https://boards.greenhouse.io/acme/jobs/9"
+  );
+  t(
+    "I: ...even on that board, where the URL still names the employer",
+    vendorLogoRealBoard.company === "Acme",
+    vendorLogoRealBoard.company
+  );
 
   const vendorSite = infoFor(
     `<html><head>
@@ -367,6 +377,57 @@ async function reopened(store, tabId) {
     "https://jobs.example.com/apply/9"
   );
   t("I: an ordinary image alt is not a company", noLogo.company === "", JSON.stringify(noLogo.company));
+
+  // ---- K. other boards: where the employer is named in the URL -----------
+  const boardUrl = (url, html) =>
+    infoFor(html || `<html><head><title>Apply</title></head><body></body></html>`, url);
+
+  const workday = boardUrl(
+    "https://nvidia.wd5.myworkdayjobs.com/en-US/NVIDIAExternalCareerSite/job/US-CA-Santa-Clara/Senior-Software-Engineer_JR123"
+  );
+  t("K: Workday's tenant subdomain names the employer", workday.company === "Nvidia", workday.company);
+
+  const workdayTitled = boardUrl(
+    "https://acme.wd1.myworkdayjobs.com/en-US/Careers/job/London/Data-Engineer_R-1",
+    `<html><head><title>Data Engineer - Acme</title></head><body></body></html>`
+  );
+  t(
+    "K: a Workday page that DOES name itself wins over the URL",
+    workdayTitled.company === "Acme",
+    workdayTitled.company
+  );
+
+  for (const [label, url, expected] of [
+    ["Lever", "https://jobs.lever.co/globex/abc-123", "Globex"],
+    ["Greenhouse (new domain)", "https://job-boards.greenhouse.io/umbrella/jobs/4", "Umbrella"],
+    ["Workable", "https://apply.workable.com/initech/j/ABC123/", "Initech"],
+    ["SmartRecruiters", "https://jobs.smartrecruiters.com/Hooli/7440000", "Hooli"],
+    ["Ashby", "https://jobs.ashbyhq.com/dunder-mifflin/abc", "Dunder Mifflin"],
+    ["Taleo", "https://acme.taleo.net/careersection/2/moresearch.ftl", "Acme"],
+    ["iCIMS", "https://careers-acme.icims.com/jobs/1234/engineer/job", "Acme"],
+    ["BambooHR", "https://acme.bamboohr.com/careers/42", "Acme"],
+    ["Jobvite", "https://jobs.jobvite.com/wayne-enterprises/job/x", "Wayne Enterprises"]
+  ]) {
+    const info = boardUrl(url);
+    t(`K: ${label} — the URL names the employer`, info.company === expected, info.company);
+  }
+
+  // The guesses that must NOT happen: a structure word, or a tenant id.
+  for (const [label, url] of [
+    ["a Greenhouse EMBED url", "https://boards.greenhouse.io/embed/job_app?for=acme&token=x"],
+    ["a tenant environment id", "https://career5.successfactors.eu/career?company=acme"],
+    ["an ordinary website", "https://www.example.com/careers/apply"],
+    ["a jobs landing page", "https://jobs.example.com/"]
+  ]) {
+    const info = boardUrl(url);
+    t(`K: ${label} yields no company`, info.company === "", JSON.stringify(info.company));
+  }
+
+  const siteWord = boardUrl(
+    "https://acme.wd1.myworkdayjobs.com/en-US/x/job/y/Engineer_R-2",
+    `<html><head><title>Engineer - NVIDIA Careers</title></head><body></body></html>`
+  );
+  t("K: a trailing site word is stripped from the company", /^nvidia$/i.test(siteWord.company) || siteWord.company === "Acme", siteWord.company);
 
   // ---- J. the row is editable, and the layout cannot collapse -----------
   const rows = openPopup({});
