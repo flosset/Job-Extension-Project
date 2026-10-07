@@ -118,6 +118,62 @@ function finishRun(run) {
       "Nothing to fill here — open the popup for the details"
     );
   }
+  // Using the shortcut must NOT lose your tracking: log the application and
+  // store the run for this tab, exactly as the popup does (best-effort — the
+  // badge above is already shown either way).
+  recordShortcutRun(run).catch(() => {});
+}
+
+/**
+ * Record what a shortcut fill produced — the application log and the per-tab
+ * "fields left for you" list — through the SHARED implementation, so the popup
+ * and the worker can never drift. The worker has no DOM, so it never touches
+ * the popup's display code.
+ */
+async function recordShortcutRun(run) {
+  const top = run.top;
+  if (!top || !top.page) return;
+  const results = {
+    unfilled: Array.isArray(top.unfilled) ? top.unfilled : [],
+    iframes: Number(top.iframes) || 0,
+    frames: typeof run.expected === "number" ? run.expected : 1,
+    scanned: Number(top.scanned) || 0,
+    filled: run.filled
+  };
+
+  let items = [];
+  try {
+    const data = await chrome.storage.local.get(KEYS.applications);
+    items = JOB_AUTOFILL_SHARED.sanitizeApplications(
+      data && data[KEYS.applications]
+    ).items;
+  } catch (err) {
+    items = [];
+  }
+  const previous = JOB_AUTOFILL_SHARED.findPreviousApplication(top.page, items);
+  const duplicate = previous
+    ? {
+        level: previous.level,
+        company: previous.entry.company,
+        role: previous.entry.role,
+        at: previous.entry.lastAt || previous.entry.at
+      }
+    : null;
+
+  const willLog = !run.sawEmpty && (run.filled > 0 || results.scanned > 0);
+  let ask = null;
+  if (willLog) {
+    const logged = await JOB_AUTOFILL_SHARED.logApplication(top.page);
+    const entry = logged && logged.entry;
+    if (entry && (!entry.company || !entry.role)) {
+      ask = { id: entry.id, company: entry.company || "", role: entry.role || "" };
+    }
+  }
+  await JOB_AUTOFILL_SHARED.saveRunRecord(run.tabId, results, {
+    page: top.page,
+    duplicate,
+    ask
+  });
 }
 
 /** Every expected frame has replied — the run is over. */
@@ -157,6 +213,8 @@ async function startShortcutFill() {
     replies: 0,
     filled: 0,
     errors: 0,
+    sawEmpty: false,
+    top: null,   // the top frame's report: page, unfilled, counts
     timer: null
   };
   state.run = run;
@@ -194,7 +252,12 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     run.filled += Number(message.filled) || 0;
   } else if (message.status === "error") {
     run.errors++;
+  } else if (message.status === "empty") {
+    run.sawEmpty = true;
   }
+  // The top frame (frameId 0) is the one that reports which job this is and the
+  // list of fields left for you.
+  if (sender.frameId === 0 && message.page) run.top = message;
   finishIfComplete(run);
 });
 

@@ -9,13 +9,6 @@
 
 // APPS_KEY comes from ui/core.js — it owns the storage keys.
 
-/**
- * Re-pressing Fill within this window is the SAME visit, not a second
- * application: without it, filling a form twice in a row would claim you had
- * applied twice.
- */
-const DUPLICATE_QUIET_MS = 5 * 60 * 1000;
-
 /** The log as last read: { items: [...] }, newest first. */
 let applicationState = { items: [] };
 
@@ -41,72 +34,23 @@ async function writeApplications() {
 }
 
 /**
- * A job we have applied to before, or null: { entry, level }, where `level` is
- * "same" (this exact posting) or "possible" (same company and role — a warning,
- * not a certainty). "same" wins if any row matches that way.
+ * A job we have applied to before, or null: { entry, level }. The rule lives in
+ * shared.js so the popup and the keyboard shortcut agree.
  */
 function previousApplication(page) {
-  if (!page) return null;
-  const now = Date.now();
-  let possible = null;
-  for (const entry of applicationState.items) {
-    if (now - (entry.lastAt || 0) <= DUPLICATE_QUIET_MS) continue;
-    const level = JOB_AUTOFILL_SHARED.applicationMatch(entry, page);
-    if (level === "same") return { entry, level: "same" };
-    if (level === "possible" && !possible) possible = { entry, level: "possible" };
-  }
-  return possible;
+  return JOB_AUTOFILL_SHARED.findPreviousApplication(page, applicationState.items);
 }
 
 /**
- * Log this application. Returns { entry, isNew, repeated } or null when there is
- * nothing worth logging (no company, role or URL — a page that is not a posting).
+ * Log this application. The merge/create rule lives in shared.js so the popup
+ * and the keyboard shortcut cannot drift; here we only keep the in-memory copy
+ * the list renders in sync.
  */
 async function recordApplication(page) {
-  if (!page) return null;
-  const company = typeof page.company === "string" ? page.company.trim() : "";
-  const role = typeof page.role === "string" ? page.role.trim() : "";
-  const url = typeof page.url === "string" ? page.url.trim() : "";
-  if (!company && !role && !url) return null;
-
-  const now = Date.now();
-  const existing = applicationState.items.find((entry) =>
-    JOB_AUTOFILL_SHARED.sameApplication(entry, { company, role, url })
-  );
-
-  if (existing) {
-    const repeated = now - (existing.lastAt || 0) <= DUPLICATE_QUIET_MS;
-    if (!repeated) {
-      existing.times = (existing.times || 1) + 1;
-      existing.lastAt = now;
-    }
-    // Fill in anything the earlier record lacked.
-    if (!existing.company) existing.company = company;
-    if (!existing.role) existing.role = role;
-    if (!existing.url) existing.url = url;
-    await writeApplications();
-    return { entry: existing, isNew: false, repeated };
-  }
-
-  const entry = {
-    id: JOB_AUTOFILL_SHARED.newId(),
-    company,
-    role,
-    url,
-    host: typeof page.host === "string" ? page.host : "",
-    at: now,
-    lastAt: now,
-    times: 1,
-    // You pressed Fill — you STARTED this application. Whether you submitted it
-    // is something only you know, so it is "in progress" until you say applied.
-    status: JOB_AUTOFILL_SHARED.initialApplicationStatus || "in progress"
-  };
-  applicationState.items.unshift(entry);
-  if (applicationState.items.length > JOB_AUTOFILL_SHARED.maxApplications) {
-    applicationState.items.length = JOB_AUTOFILL_SHARED.maxApplications;
-  }
-  await writeApplications();
-  return { entry, isNew: true, repeated: false };
+  const result = await JOB_AUTOFILL_SHARED.logApplication(page);
+  if (!result) return null;
+  await loadApplications();
+  return result;
 }
 
 /** Change one application's pipeline status. */

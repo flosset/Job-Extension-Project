@@ -497,43 +497,9 @@ async function readRuns() {
   }
 }
 
-/** Store a finished run under its tab, pruning expired and extra records. */
+/** Store a finished run under its tab (the shared rule, so the worker agrees). */
 async function saveRun(tabId, results, extra) {
-  if (typeof tabId !== "number" || !results) return;
-  const runs = await readRuns();
-  const cutoff = Date.now() - JOB_AUTOFILL_SHARED.runMaxAgeMs;
-  const record = {
-    tabId,
-    at: Date.now(),
-    results,
-    // Kept alongside the list so a reopened popup can say the same thing it
-    // said at the time: which job this was, whether it was a repeat, and — when
-    // the page could not name the job — the question still waiting to be
-    // answered (the popup closes on any click, so it has to outlive it).
-    page: (extra && extra.page) || null,
-    duplicate: (extra && extra.duplicate) || null,
-    ask: (extra && extra.ask) || null
-  };
-
-  // Keep only recent records, and never prune the one just written.
-  const older = [];
-  for (const key of Object.keys(runs)) {
-    const kept = runs[key];
-    if (kept && typeof kept.at === "number" && kept.at >= cutoff && kept.tabId !== tabId) {
-      older.push(kept);
-    }
-  }
-  older.sort((a, b) => b.at - a.at);
-
-  const pruned = {};
-  for (const kept of [record].concat(older.slice(0, JOB_AUTOFILL_SHARED.maxRuns - 1))) {
-    pruned[String(kept.tabId)] = kept;
-  }
-  try {
-    await chrome.storage.local.set({ [RUNS_KEY]: pruned });
-  } catch (err) {
-    /* remembering the list is a convenience — never let it break a fill */
-  }
+  await JOB_AUTOFILL_SHARED.saveRunRecord(tabId, results, extra);
 }
 
 /** Log a finished application, so a later visit to the same job can warn you. */

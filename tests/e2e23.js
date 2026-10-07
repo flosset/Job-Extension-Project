@@ -54,7 +54,7 @@ function loadWorker(store, control) {
       local: {
         get: async (key) =>
           typeof key === "string" ? { [key]: store[key] } : Object.assign({}, store),
-        set: async () => {}
+        set: async (obj) => Object.assign(store, obj)
       },
       onChanged: { addListener: (fn) => (listeners.storage = fn) }
     },
@@ -353,6 +353,52 @@ function loadWorker(store, control) {
     "F: the review count takes over once the flash expires",
     worker.last() === "1",
     worker.last()
+  );
+
+  // ---- G. the shortcut also logs the application and the run ---------------
+  // The shortcut is the fastest way to fill, so it must NOT lose your tracking:
+  // it records the same log row and per-tab run the popup does, through the
+  // shared implementation (no popup is open here).
+  control.tab = { id: 7, url: "https://boards.example.com/apply" };
+  control.frames = 1;
+  worker.listeners.command("fill-active-form");
+  await sleep(25);
+  worker.listeners.message(
+    {
+      type: "JOB_AUTOFILL_RESULT",
+      status: "ok",
+      filled: 4,
+      scanned: 12,
+      iframes: 0,
+      unfilled: [{ label: "Portfolio", required: false, ref: "r1" }],
+      page: {
+        company: "Acme",
+        role: "Engineer",
+        url: "https://boards.example.com/apply",
+        host: "boards.example.com"
+      }
+    },
+    { tab: { id: 7 }, frameId: 0 }
+  );
+  await sleep(60);
+
+  const apps = store.applications;
+  t("G: the shortcut logged the application", !!apps && apps.items.length === 1, apps && apps.items.length);
+  t(
+    "G: with the page's company and role",
+    !!apps && apps.items[0].company === "Acme" && apps.items[0].role === "Engineer"
+  );
+  t("G: as 'in progress', not applied", !!apps && apps.items[0].status === "in progress");
+
+  const rec = store.lastRuns && store.lastRuns["7"];
+  t("G: the shortcut stored the run for its tab", !!rec);
+  t(
+    "G: keeping the 'fields left for you' list",
+    !!rec && Array.isArray(rec.results.unfilled) && rec.results.unfilled.length === 1
+  );
+  t(
+    "G: so reopening the popup can rebuild it",
+    !!rec && !!rec.page && rec.page.company === "Acme" && rec.page.role === "Engineer"
   );
 
   console.log(

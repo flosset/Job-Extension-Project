@@ -24,7 +24,9 @@ no telemetry, no accounts.
   **per tab**, so it is still there when you reopen the popup to work through
   those fields by hand.
 - **Alt+Shift+F** fills the page without opening the popup — handy on multi-page
-  Workday forms — and the toolbar badge reports the result.
+  Workday forms — and the toolbar badge reports the result. It records the same
+  application-log row and "fields left for you" list the popup does, so the
+  shortcut never loses your tracking.
 - **Keeps an application log.** Pressing Fill on a posting records the company,
   role, URL and date **as \"in progress\"** — filling a form is not submitting it,
   and one click marks a row **applied** once you have. Opening the popup on a

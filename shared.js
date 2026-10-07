@@ -51,6 +51,12 @@ var JOB_AUTOFILL_SHARED = {
   maxProfiles: 8,
   maxApplications: 500,
 
+  /**
+   * Re-pressing Fill within this window is the SAME visit, not a second
+   * application. Shared, so the popup and the keyboard shortcut agree.
+   */
+  duplicateQuietMs: 5 * 60 * 1000,
+
   /** Caps on remembered widgets and on the pending "remember this widget?" list. */
   maxRecipes: 20,
   maxWidgetCandidates: 10,
@@ -461,6 +467,133 @@ var JOB_AUTOFILL_SHARED = {
 
     out.sort((a, b) => b.lastAt - a.lastAt || b.at - a.at);
     return { items: out };
+  },
+
+  /**
+   * A job we have applied to before, or null: { entry, level }. PURE over a
+   * supplied list, so the popup (its loaded state) and the worker (freshly-read
+   * storage) share ONE rule. "same" wins over "possible"; "possible" always
+   * means the same company+role, which may still be two different postings.
+   */
+  findPreviousApplication: function (page, items) {
+    if (!page || !Array.isArray(items)) return null;
+    const now = Date.now();
+    let possible = null;
+    for (const entry of items) {
+      if (now - (entry.lastAt || 0) <= this.duplicateQuietMs) continue;
+      const level = this.applicationMatch(entry, page);
+      if (level === "same") return { entry, level: "same" };
+      if (level === "possible" && !possible) possible = { entry, level: "possible" };
+    }
+    return possible;
+  },
+
+  /**
+   * Log an application into storage — the ONE implementation, used by BOTH the
+   * popup and the keyboard shortcut (the worker has no popup, but must not lose
+   * your tracking). Returns { entry, isNew, repeated } | null when the page is
+   * not a posting at all.
+   */
+  logApplication: async function (page) {
+    if (!page) return null;
+    const company = typeof page.company === "string" ? page.company.trim() : "";
+    const role = typeof page.role === "string" ? page.role.trim() : "";
+    const url = typeof page.url === "string" ? page.url.trim() : "";
+    if (!company && !role && !url) return null;
+
+    let items = [];
+    try {
+      const data = await chrome.storage.local.get(this.keys.applications);
+      items = this.sanitizeApplications(data && data[this.keys.applications]).items;
+    } catch (err) {
+      items = [];
+    }
+
+    const now = Date.now();
+    const existing = items.find((entry) =>
+      this.sameApplication(entry, { company, role, url })
+    );
+
+    let result;
+    if (existing) {
+      const repeated = now - (existing.lastAt || 0) <= this.duplicateQuietMs;
+      if (!repeated) {
+        existing.times = (existing.times || 1) + 1;
+        existing.lastAt = now;
+      }
+      if (!existing.company) existing.company = company;
+      if (!existing.role) existing.role = role;
+      if (!existing.url) existing.url = url;
+      result = { entry: existing, isNew: false, repeated };
+    } else {
+      const entry = {
+        id: this.newId(),
+        company,
+        role,
+        url,
+        host: typeof page.host === "string" ? page.host : "",
+        at: now,
+        lastAt: now,
+        times: 1,
+        status: this.initialApplicationStatus
+      };
+      items.unshift(entry);
+      if (items.length > this.maxApplications) items.length = this.maxApplications;
+      result = { entry, isNew: true, repeated: false };
+    }
+
+    items.sort((a, b) => b.lastAt - a.lastAt || b.at - a.at);
+    try {
+      await chrome.storage.local.set({
+        [this.keys.applications]: { items: items.slice(0, this.maxApplications) }
+      });
+    } catch (err) {
+      /* the log is a convenience — never let it break a fill */
+    }
+    return result;
+  },
+
+  /**
+   * Store a finished run under its tab, pruning expired and extra records. The
+   * popup and the keyboard shortcut both call this, so a shortcut fill still
+   * leaves the "fields left for you" list for the next popup open.
+   */
+  saveRunRecord: async function (tabId, results, extra) {
+    if (typeof tabId !== "number" || !results) return;
+    let runs = {};
+    try {
+      const data = await chrome.storage.local.get(this.keys.runs);
+      const raw = data && data[this.keys.runs];
+      runs = raw && typeof raw === "object" ? raw : {};
+    } catch (err) {
+      runs = {};
+    }
+    const cutoff = Date.now() - this.runMaxAgeMs;
+    const record = {
+      tabId,
+      at: Date.now(),
+      results,
+      page: (extra && extra.page) || null,
+      duplicate: (extra && extra.duplicate) || null,
+      ask: (extra && extra.ask) || null
+    };
+    const older = [];
+    for (const key of Object.keys(runs)) {
+      const kept = runs[key];
+      if (kept && typeof kept.at === "number" && kept.at >= cutoff && kept.tabId !== tabId) {
+        older.push(kept);
+      }
+    }
+    older.sort((a, b) => b.at - a.at);
+    const pruned = {};
+    for (const kept of [record].concat(older.slice(0, this.maxRuns - 1))) {
+      pruned[String(kept.tabId)] = kept;
+    }
+    try {
+      await chrome.storage.local.set({ [this.keys.runs]: pruned });
+    } catch (err) {
+      /* remembering the list is a convenience — never let it break a fill */
+    }
   },
 
   // --- Remembered widgets ---------------------------------------------------
