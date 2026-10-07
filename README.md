@@ -360,7 +360,11 @@ the published package.
   whole number, exactly as before.
 - **Calendar-popup date pickers** (react-datepicker-style) are not driven; a
   plain `input[type=date]` or a month/year pair is.
-- Workday's live DOM has not been verified against a real application locally.
+- **Live ATS flows are not yet verified in a real browser.** The jsdom suites
+  cover the DOM shapes we know, but representative Workday, Greenhouse, Lever and
+  Ashby applications should be opened (without submitting) in Chrome to confirm
+  the reads and the fills on the live DOM. This is the highest-value open task;
+  it is manual/QA work, not something the unit suites can stand in for.
 - **Learned widgets** handle repeated groups with readable labels. A widget whose
   fields have no labels is refused (nothing is guessed), and widgets that are not
   repeated groups at all — wizards, calendar-popup date pickers, drag-and-drop —
