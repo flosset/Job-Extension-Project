@@ -8,8 +8,10 @@ no telemetry, no accounts.
 
 - Fills the standard fields — name, contact, links, address, work
   authorisation, self-identification, salary, availability.
-- Handles the awkward widgets: native `<select>`, `react-select` comboboxes,
-  month/year date pairs, `input[type=date]`, contenteditable bios.
+- Handles the awkward widgets: native `<select>`, `react-select` comboboxes
+  (including **searchable** ones that render no options until you type, as
+  Greenhouse's School picker does), month/year date pairs, `input[type=date]`,
+  contenteditable bios.
 - Repeats **Work Experience** and **Education** sections (overwrite, add, and —
   only if you opt in — remove leftover blocks).
 - **Auto-attaches your resume** and warns you if the site never confirmed it.
@@ -103,8 +105,18 @@ These are the things the extension deliberately refuses to do:
 6. **Never guess an ambiguous answer.** If the same question shows up twice with
    different answers, nothing is learned from it and the user is told — rather
    than silently remembering the wrong one.
-5. **Never mis-report.** Results wait for every frame to answer, and the popup
+7. **Never mis-report.** Results wait for every frame to answer, and the popup
    says so when one didn't.
+8. **Never mutate a repeatable section it cannot verify.** "Add another" is only
+   clicked when the blocks already on the page are ones it can identify *and*
+   fill, and never when it can see no block at all — a click whose result cannot
+   be checked is a change we refuse to make. A section it could not address is
+   reported instead.
+9. **Never trust a label it cannot tie to the control.** A nearby label is
+   credited to a field only when its `for` points at that control, at a wrapper
+   that contains it, at nothing (the input it named was replaced, as react-select
+   does), or when the container holds exactly one field — so a neighbouring row's
+   label can never be borrowed.
 
 ## Architecture
 
@@ -210,6 +222,7 @@ node e2e26.js     # multiple profiles (and the v1 migration)
 node e2e27.js     # cover-letter templates and placeholders
 node e2e28.js     # split phone fields (country code + number)
 node e2e29.js     # open Shadow DOM traversal
+node e2e30.js     # Greenhouse's react-select Education block (reuse, not clones)
 node matcher-test.js
 ```
 

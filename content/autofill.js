@@ -512,6 +512,7 @@
     // added on purpose are indistinguishable to us.
     let removed = 0;
     let surplus = 0;
+    let sectionIssues = [];
     if (JA.fillRepeatableSections) {
       try {
         const sections = await JA.fillRepeatableSections(profile, used, {
@@ -520,6 +521,10 @@
         filled += sections.filled;
         removed = sections.removed;
         surplus = sections.surplus;
+        // Sections the fill could not address at all, so the popup can say so
+        // instead of leaving the user staring at an empty block they cannot
+        // explain.
+        sectionIssues = sections.unfilled || [];
       } catch (err) {
         /* a stubborn section must not abort the rest */
       }
@@ -587,6 +592,7 @@
       surplus,
       flagged,
       unfilled,
+      sectionIssues,
       page,
       frame: location.href,
       scanned,

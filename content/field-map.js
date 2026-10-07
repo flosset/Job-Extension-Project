@@ -526,7 +526,10 @@
 
     education: {
       anchor: ["school or university", "school", "university"],
-      confirm: [["degree"], ["from", "to", "gpa", "overall result"]],
+      confirm: [
+        ["degree"],
+        ["start", "start date", "end", "end date", "from", "to", "gpa", "overall result"]
+      ],
       fields: {
         school: ["school or university", "school", "university", "institution", "college"],
         degree: ["degree"],

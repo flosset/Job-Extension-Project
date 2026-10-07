@@ -34,6 +34,33 @@
     }
   };
 
+  /** getElementById within an element's own root (a `for` is root-local). */
+  function elementById(id, el) {
+    if (!id) return null;
+    const root = JA.rootOf(el);
+    try {
+      if (root.getElementById) return root.getElementById(id);
+      const escaped = String(id).replace(/["\\]/g, "\\$&");
+      return root.querySelector('[id="' + escaped + '"]');
+    } catch (err) {
+      return null;
+    }
+  }
+
+  /** The visible form controls inside a node (how many fields it holds). */
+  function fieldsWithin(node) {
+    if (!node || !node.querySelectorAll) return [];
+    try {
+      return Array.from(
+        node.querySelectorAll(
+          'input:not([type="hidden"]), textarea, select, [contenteditable="true"]'
+        )
+      );
+    } catch (err) {
+      return [];
+    }
+  }
+
   /** Collect every human-readable hint attached to a field. */
   JA.getSignal = function (el) {
     const bits = [];
@@ -53,19 +80,32 @@
     const wrappingLabel = el.closest("label");
     if (wrappingLabel) bits.push(wrappingLabel.textContent);
 
-    // Fallback for portals that place the label beside the field without a
-    // `for`/id link. Portals like Workday wrap the input in a div, so the
-    // label can sit 1–3 levels up — walk up until a usable label is found.
-    // Labels bound to a *different* field (or wrapping their own control) are
-    // ignored, so a page-level label can't match every sibling field.
+    // Fallback for portals that put the label BESIDE the field without a usable
+    // `for`/id link. react-select (Greenhouse, Lever) does exactly this: it keeps
+    // the page's original <label for="school"> and replaces the input that label
+    // pointed at with its own, several wrappers deeper.
+    //
+    // A label is credited to this control only when it demonstrably names it:
+    //   * `for` points at this control,
+    //   * `for` points at a wrapper that CONTAINS this control (the select shell),
+    //   * `for` points at nothing at all (a stale pointer to the input it replaced),
+    //   * or it has no `for` and its container holds exactly ONE field — so the
+    //     label of a neighbouring row ("First Name" beside "Last Name") is never
+    //     lent to the wrong field.
+    // A label wrapping its own control is skipped here; it is picked up above.
     let ancestor = el.parentElement;
-    for (let level = 0; ancestor && level < 3; level++) {
+    for (let level = 0; ancestor && level < 6; level++) {
       let found = false;
       for (const child of ancestor.children) {
         if (child === el || child.tagName !== "LABEL") continue;
-        const forId = child.getAttribute("for");
-        if (forId && forId !== el.id) continue;
         if (child.querySelector("input, select, textarea")) continue;
+        const forId = child.getAttribute("for");
+        if (forId && forId !== el.id) {
+          const target = elementById(forId, el);
+          if (target && target !== el && !target.contains(el)) continue;
+        } else if (!forId && fieldsWithin(ancestor).length !== 1) {
+          continue;
+        }
         bits.push(child.textContent);
         found = true;
       }

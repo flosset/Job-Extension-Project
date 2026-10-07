@@ -11,11 +11,26 @@
   "use strict";
   const JA = (window.__JobAutofill = window.__JobAutofill || {});
 
+  /**
+   * Is any of `keywords` present in `node` — as a plain field OR as a custom
+   * dropdown? findFieldByKeywords deliberately ignores combobox inputs (they are
+   * not text fields), so a block built entirely from react-select widgets could
+   * never be confirmed without also asking the combobox driver.
+   */
+  function matchesIn(node, keywords) {
+    if (!keywords || !keywords.length) return false;
+    if (JA.findFieldByKeywords && JA.findFieldByKeywords(node, keywords)) return true;
+    return !!(
+      JA.comboControlForKeywords &&
+      JA.comboControlForKeywords(keywords, new Set(), node)
+    );
+  }
+
   /** Smallest ancestor of `field` that contains the section's other fields. */
   JA.smallestBlockFor = function (field, section) {
     const groups = section.confirm || [];
     const hasAll = (node) =>
-      groups.length > 0 && groups.every((g) => !!JA.findFieldByKeywords(node, g));
+      groups.length > 0 && groups.every((g) => matchesIn(node, g));
 
     let node = field.parentElement;
     let depth = 0;
@@ -28,7 +43,7 @@
     node = field.parentElement;
     depth = 0;
     while (node && depth < 12) {
-      if (groups.some((g) => JA.findFieldByKeywords(node, g))) return node;
+      if (groups.some((g) => matchesIn(node, g))) return node;
       node = node.parentElement;
       depth++;
     }
@@ -204,9 +219,36 @@
     return count;
   }
 
+  /**
+   * Could we actually fill this block? Mirrors exactly what fillBlock uses, so
+   * the answer is never optimistic: a block whose fields cannot be located is a
+   * block we must not clone.
+   */
+  function blockLooksFillable(block, section) {
+    if (!block) return false;
+    return Object.keys(section.fields).some((key) =>
+      matchesIn(block, section.fields[key])
+    );
+  }
+
   /** Grow the section until it has at least `want` blocks. */
   async function ensureBlocks(section, want) {
     let blocks = JA.sectionBlocks(section);
+
+    // NEVER grow a section we can identify nothing in. A click here would be an
+    // unverifiable mutation: we could not tell whether it created a block, and
+    // blind "Add another" clicks are exactly how three empty Education blocks
+    // appeared on a Greenhouse form. If a section really does render its first
+    // block only after a click, the user makes that one click (or presses Fill
+    // again once the form has rendered it) — we do not guess.
+    if (blocks.length === 0) return blocks;
+
+    // Nor grow a section whose blocks do not accept the section's own fields:
+    // every click would leave another empty widget behind.
+    if (!blockLooksFillable(blocks[0], section)) {
+      return blocks;
+    }
+
     let guard = 0;
     while (blocks.length < want && guard < want + 3) {
       guard++;
@@ -223,6 +265,9 @@
         }
       }
       if (!grew) break;
+      // The block we just created must be one we can fill; otherwise the click
+      // was wasted and repeating it only makes the mess bigger.
+      if (!blockLooksFillable(blocks[blocks.length - 1], section)) break;
     }
     return blocks;
   }
@@ -239,7 +284,7 @@
    */
   async function fillSection(section, entries, used, opts) {
     if (!section || entries.length === 0) {
-      return { filled: 0, removed: 0, surplus: 0 };
+      return { filled: 0, removed: 0, surplus: 0, skipped: false };
     }
 
     const trim = !!(opts && opts.trim);
@@ -270,7 +315,7 @@
         }
       }
     }
-    return { filled, removed, surplus };
+    return { filled, removed, surplus, skipped: filled === 0 };
   }
 
   /** Which stored profile array feeds which section definition. */
@@ -278,6 +323,12 @@
     { section: "workExperience", profile: "workExperiences" },
     { section: "education", profile: "educations" }
   ];
+
+  /** Human names for the report ("could not fill education"). */
+  const SECTION_LABEL = {
+    workExperience: "work experience",
+    education: "education"
+  };
 
   /** An entry counts as real if any of its fields holds text. */
   function hasContent(entry) {
@@ -297,7 +348,7 @@
    * Returns { filled, removed, surplus }.
    */
   JA.fillRepeatableSections = async function (profile, used, opts) {
-    const total = { filled: 0, removed: 0, surplus: 0 };
+    const total = { filled: 0, removed: 0, surplus: 0, unfilled: [] };
     for (const mapping of SECTION_ENTRIES) {
       const section = JA.SECTIONS[mapping.section];
       const raw = profile[mapping.profile];
@@ -308,8 +359,13 @@
         total.filled += part.filled;
         total.removed += part.removed;
         total.surplus += part.surplus;
+        // A section the fill could not address at all is reported, not hidden:
+        // an empty "Education" block the user cannot explain is worse than being
+        // told the widget was not recognised.
+        if (part.skipped) total.unfilled.push(SECTION_LABEL[mapping.section]);
       } catch (err) {
         /* one stubborn section must not abort the others */
+        total.unfilled.push(SECTION_LABEL[mapping.section]);
       }
     }
     return total;

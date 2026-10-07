@@ -1,5 +1,5 @@
-// combobox.js — drives custom (react-select style) dropdowns, which modern
-// ATS forms (Greenhouse, Workday, …) use instead of <select>. Opens the
+﻿// combobox.js â€” drives custom (react-select style) dropdowns, which modern
+// ATS forms (Greenhouse, Workday, â€¦) use instead of <select>. Opens the
 // control, hovers the matching option, commits with several fallback
 // strategies, then closes the menu.
 (() => {
@@ -100,6 +100,33 @@
     return JA.queryAll('[class*="select__option"], [role="option"]');
   };
 
+  /**
+   * The options belonging to ONE control's menu.
+   *
+   * Prefers the control's own container, so a menu that some other dropdown left
+   * open on the page can never be mistaken for this one's â€” otherwise a click
+   * meant for Education block 2 could land on block 1's leftover list. Falls back
+   * to the whole page only when the container holds no options at all (a portal
+   * that renders its menu somewhere unreachable from the control).
+   */
+  JA.optionsForControl = function (control) {
+    const container =
+      (control.closest &&
+        control.closest('[class*="select-shell"], [class*="select__container"]')) ||
+      control.parentElement;
+    try {
+      if (container && container.querySelectorAll) {
+        const own = Array.from(
+          container.querySelectorAll('[class*="select__option"], [role="option"]')
+        );
+        if (own.length > 0) return own;
+      }
+    } catch (err) {
+      /* fall through to the page-wide list */
+    }
+    return JA.optionElements();
+  };
+
   /** Is this control's dropdown menu currently open? */
   JA.isComboOpen = function (control) {
     const input = JA.comboInput(control);
@@ -138,7 +165,7 @@
     await JA.sleep(120);
     if (!JA.isComboOpen(control)) return;
 
-    // Multi-select keeps the menu open — clicking the control toggles it shut.
+    // Multi-select keeps the menu open â€” clicking the control toggles it shut.
     JA.mouseClick(control);
     await JA.sleep(150);
     if (!JA.isComboOpen(control)) return;
@@ -149,7 +176,7 @@
 
   /**
    * Choose an option on a custom dropdown. Opens the menu, hovers the matching
-   * option, then tries several commit strategies until one sticks — because
+   * option, then tries several commit strategies until one sticks â€” because
    * different react-select builds listen for different events:
    *   1. a normal mouse click on the option,
    *   2. Enter on the input (react-select selects the *hovered* option),
@@ -164,34 +191,69 @@
    * Open the dropdown matching `keywords`, read its option list, and commit
    * `value` if an option matches. `value` comes from either a fixed profile key
    * or a user answer-bank entry, which is how arbitrary portal questions (e.g.
-   * "Preferred office location") get answered reactively — we only select an
+   * "Preferred office location") get answered reactively â€” we only select an
    * option that genuinely exists.
    */
   JA.chooseComboByKeywords = async function (keywords, value, used, root) {
     const control = JA.comboControlForKeywords(keywords, used, root);
     if (!control) return false;
 
+    // Set when the value had to be TYPED to make the widget render its options.
+    let typed = false;
+    // Resolved out here so the cleanup in `finally` can reach it too.
+    const input = JA.comboInput(control);
+
     try {
-      const input = JA.comboInput(control);
       if (input && typeof input.focus === "function") input.focus();
       JA.mouseClick(control);
       await JA.waitForOptions(900);
 
+      let hovered = JA.matchOptionElement(JA.optionsForControl(control), value);
+
+      // Type-to-search. A searchable widget renders NO options until you type â€”
+      // Greenhouse's School picker (thousands of universities from their API) and
+      // any react-select fed by the portal's own search are like this. Without
+      // this step the list stays empty and the field looks unfillable when it is
+      // merely waiting for input. Typing is exactly what a person does here.
+      const searchable =
+        !!input && !input.readOnly && !input.disabled &&
+        input.getAttribute("readonly") === null;
+      if (!hovered && searchable) {
+        try {
+          JA.assignValue(input, value);
+          typed = true;
+        } catch (err) {
+          /* a widget that refuses the text is simply not searchable */
+        }
+        await JA.waitForOptions(1200);
+        hovered = JA.matchOptionElement(JA.optionsForControl(control), value);
+      }
+
+      if (!hovered) {
+        // Nothing matched: leave no stray search text behind.
+        if (searchable) {
+          try {
+            JA.assignValue(input, "");
+          } catch (err) {
+            /* ignore */
+          }
+        }
+        return false;
+      }
+
       // Hover the match so react-select's "focused option" becomes the target.
-      const hovered = JA.matchOptionElement(JA.optionElements(), value);
-      if (!hovered) return false;
       hovered.dispatchEvent(new MouseEvent("mouseover", JA.mouseOpts()));
       hovered.dispatchEvent(new MouseEvent("mousemove", JA.mouseOpts()));
 
-      // Strategy 1 — click the option (re-queried in case React re-rendered it).
-      let option = JA.matchOptionElement(JA.optionElements(), value) || hovered;
+      // Strategy 1 â€” click the option (re-queried in case React re-rendered it).
+      let option = JA.matchOptionElement(JA.optionsForControl(control), value) || hovered;
       JA.mouseClick(option);
       if (await JA.comboCommitted(control, 300)) {
         used.add(control);
         return true;
       }
 
-      // Strategy 2 — Enter on the input selects the hovered option.
+      // Strategy 2 â€” Enter on the input selects the hovered option.
       if (input) {
         input.dispatchEvent(
           new KeyboardEvent("keydown", {
@@ -208,12 +270,12 @@
         }
       }
 
-      // Strategy 3 — bare click, re-opening the menu if it already closed.
-      option = JA.matchOptionElement(JA.optionElements(), value);
+      // Strategy 3 â€” bare click, re-opening the menu if it already closed.
+      option = JA.matchOptionElement(JA.optionsForControl(control), value);
       if (!option) {
         JA.mouseClick(control);
         await JA.waitForOptions(600);
-        option = JA.matchOptionElement(JA.optionElements(), value);
+        option = JA.matchOptionElement(JA.optionsForControl(control), value);
       }
       if (option) {
         option.dispatchEvent(new MouseEvent("click", JA.mouseOpts()));
@@ -225,6 +287,17 @@
 
       return false;
     } finally {
+      // A search box must not be left holding our query: on builds that do not
+      // clear it themselves it would be submitted as the field's own text. Safe
+      // because a control that shows its committed value in its own element has
+      // an input that is purely a search box.
+      if (typed && input && JA.comboValueEl(control)) {
+        try {
+          JA.assignValue(input, "");
+        } catch (err) {
+          /* ignore */
+        }
+      }
       await JA.closeCombo(control);
     }
   };
@@ -250,7 +323,7 @@
       }
     }
 
-    // Answer-bank entries also drive dropdowns (feature 4 → reactive selects).
+    // Answer-bank entries also drive dropdowns (feature 4 â†’ reactive selects).
     const snippets = Array.isArray(profile.customSnippets)
       ? profile.customSnippets
       : [];
@@ -312,7 +385,7 @@
 
   /**
    * Open each required, still-unanswered dropdown, read its options, close it,
-   * and return { label, required, ref } entries. We NEVER select anything here —
+   * and return { label, required, ref } entries. We NEVER select anything here â€”
    * this only tells the user which choices the form actually offers, so they
    * can decide. Capped so it stays quick.
    */
@@ -342,7 +415,7 @@
         }
         if (texts.length > 0) {
           out.push({
-            label: label + "  →  " + texts.join(" · "),
+            label: label + "  â†’  " + texts.join(" Â· "),
             required: true,
             ref: JA.refFor ? JA.refFor(control) : null
           });

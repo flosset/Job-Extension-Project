@@ -34,6 +34,9 @@ const aggregate = {
       flagged: 0, unfilled: [],
       frames: 0, contributingFrames: 0, iframes: 0,
       sawEmpty: false, sawError: false, sawBusy: false, scanned: 0,
+      // Repeatable sections the fill could not address at all (so the user is
+      // told rather than left with an empty block they cannot explain).
+      sectionIssues: [],
       // What this page is an application for (top frame only) — filled in by
       // autofill.js from JA.pageInfo().
       page: null
@@ -56,6 +59,13 @@ const aggregate = {
     this.results.scanned += Number(message.scanned) || 0;
     // Only the top frame reports this, so the first non-empty one wins.
     if (!this.results.page && message.page) this.results.page = message.page;
+    if (Array.isArray(message.sectionIssues)) {
+      for (const section of message.sectionIssues) {
+        if (section && this.results.sectionIssues.indexOf(section) === -1) {
+          this.results.sectionIssues.push(section);
+        }
+      }
+    }
     this.results.iframes = Math.max(
       this.results.iframes,
       Number(message.iframes) || 0
@@ -188,6 +198,16 @@ const aggregate = {
       notes.push("📋 Logged to your applications.");
     }
     if (missing) notes.push(missing.trim());
+
+    // A section we could not address is said out loud: an empty "Education"
+    // block the user cannot explain is worse than being told it was not
+    // recognised (and that nothing was added).
+    if (r.sectionIssues && r.sectionIssues.length > 0) {
+      notes.push(
+        `⚠️ Could not fill ${r.sectionIssues.join(" or ")} — that widget was not ` +
+          "recognised, so nothing was added."
+      );
+    }
 
     // An attachment we deliberately left alone — the user's own file, kept.
     if (r.kept > 0) {
