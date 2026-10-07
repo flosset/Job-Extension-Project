@@ -51,6 +51,11 @@ document.addEventListener("DOMContentLoaded", () => {
   on("askSaveBtn", "click", saveJobAsk);
   on("askSkipBtn", "click", dismissJobAsk);
 
+  // "Remember this widget": the offers the content script left behind, and the
+  // saved definitions (which the fill replays before anything else).
+  on("saveWidgetsBtn", "click", saveAllWidgets);
+  on("dismissWidgetsBtn", "click", dismissAllWidgets);
+
   // Any edit in the form means what is on screen differs from what is stored.
   on("profileForm", "input", markDirty);
   on("profileForm", "change", markDirty);
@@ -84,7 +89,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // Sections read each other's data, so load the shared pieces first and render
   // the parts that depend on them once they are actually in.
   loadLearned();
-  Promise.all([loadProfiles(), loadProfile(), loadApplications()]).then(() => {
+  Promise.all([
+    loadProfiles(),
+    loadProfile(),
+    loadApplications(),
+    loadWidgets()
+  ]).then(() => {
     refreshProfileSelect();
     refreshCoverLetter();
     renderApplications();

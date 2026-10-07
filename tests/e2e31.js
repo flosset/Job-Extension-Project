@@ -372,6 +372,88 @@ const slugForKeyword = (recipe, keyword) =>
     bind("Reference Email", "bob@corp.com", { email: "other@corp.com" }) === ""
   );
 
+  // ---- I. the offer, the Save, and the stale-delete on the profile page ----
+  const WIDGET_SHELL = (page) => `<!doctype html><html><body data-page="${page}">
+    <p id="status"></p>
+    <div id="widgetSection" hidden><p id="widgetNote"></p><div id="widgetRows"></div>
+      <button type="button" id="saveWidgetsBtn"></button>
+      <button type="button" id="dismissWidgetsBtn"></button></div>
+    <div id="recipeRows"></div><p id="recipeEmpty"></p>
+  </body></html>`;
+
+  function openWidgetPage(store, page) {
+    const dom = new JSDOM(WIDGET_SHELL(page), {
+      runScripts: "dangerously",
+      pretendToBeVisual: true,
+      url: "chrome-extension://x/page.html"
+    });
+    const w = dom.window;
+    w.Element.prototype.getClientRects = () => [{ width: 10, height: 10 }];
+    w.chrome = {
+      storage: storageStub(store),
+      runtime: { onMessage: { addListener: () => {} }, sendMessage: () => {} },
+      tabs: {
+        query: async () => [
+          { id: 7, url: "https://boards.example.com/apply", title: "Apply" }
+        ]
+      }
+    };
+    w.eval(POPUP_JS);
+    w.document.dispatchEvent(new w.Event("DOMContentLoaded"));
+    return { w, d: w.document, store };
+  }
+
+  const uiStore = {
+    jobProfile: { firstName: "Jane" },
+    widgetCandidates: { candidates: [JSON.parse(JSON.stringify(cand))], skipped: ["Mystery"] }
+  };
+  const I = openWidgetPage(uiStore, "popup");
+  await sleep(80);
+  t("I: the popup offers the pending widget", I.d.getElementById("widgetSection").hidden === false);
+  t(
+    "I: it says what the widget is",
+    /References/.test(I.d.getElementById("widgetRows").textContent),
+    I.d.getElementById("widgetRows").textContent
+  );
+  t(
+    "I: and it says nothing is saved yet",
+    /Nothing is saved until you click Save/.test(I.d.getElementById("widgetNote").textContent)
+  );
+  t(
+    "I: the refused widget is explained",
+    /could not be learned/.test(I.d.getElementById("widgetNote").textContent)
+  );
+
+  I.d.getElementById("saveWidgetsBtn").click();
+  await sleep(80);
+  t(
+    "I: Save writes the definition",
+    (uiStore.jobRecipes && uiStore.jobRecipes.items.length) === 1,
+    uiStore.jobRecipes && uiStore.jobRecipes.items.length
+  );
+  t("I: the definition has an id and a created-at", !!uiStore.jobRecipes.items[0].id && uiStore.jobRecipes.items[0].createdAt > 0);
+  t("I: the offer clears once accepted", uiStore.widgetCandidates.candidates.length === 0);
+  t("I: the section hides", I.d.getElementById("widgetSection").hidden === true);
+  t("I: and it reports what it did", /Saved 1 widget/.test(I.d.getElementById("status").textContent), I.d.getElementById("status").textContent);
+
+  // The profile page lists it, with when it was last used, and can delete it.
+  const O = openWidgetPage(uiStore, "options");
+  await sleep(80);
+  const savedRow = O.d.querySelector("#recipeRows .app-row");
+  t("I: the profile page lists the widget", !!savedRow);
+  t(
+    "I: showing its site and usage",
+    /boards\.example\.com/.test(savedRow.textContent) && /used 0×/.test(savedRow.textContent),
+    savedRow.textContent
+  );
+  t("I: 'None yet.' is hidden", O.d.getElementById("recipeEmpty").hidden === true);
+
+  savedRow.querySelector(".snip-del").click();
+  await sleep(80);
+  t("I: deleting forgets it", (uiStore.jobRecipes.items || []).length === 0);
+  t("I: 'None yet.' comes back", O.d.getElementById("recipeEmpty").hidden === false);
+  t("I: and it says so", /Forgotten/.test(O.d.getElementById("status").textContent));
+
   console.log(
     `\n${fail === 0 ? "REMEMBER-WIDGET E2E PASS" : "REMEMBER-WIDGET E2E FAIL"} (${pass} passed, ${fail} failed)`
   );

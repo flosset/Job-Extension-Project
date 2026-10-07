@@ -42,6 +42,12 @@ no telemetry, no accounts.
 - **Split phone fields** (a separate country code + number, as Taleo and Workday
   render them) are filled as a pair.
 - Reaches fields inside **open Shadow DOM** (web-component widgets).
+- **Remembers widgets you fill by hand.** A repeated group nobody has taught the
+  extension — a *References* block, an emergency contact, a bespoke education
+  widget — is learned from the way you fill it, so next time it is filled for you
+  **before** the ordinary name/email matching runs. Nothing is saved without a
+  click, and the profile page lists what it knows (with when each was last used)
+  so a stale one can be deleted.
 
 ## How the job name is detected
 
@@ -233,6 +239,41 @@ Most support for a new portal is **data, not code**: add the wording the site
 uses to `JA.KEYWORDS` or a section's `fields` in `content/field-map.js`. Matching
 is label-driven, so no per-domain adapters are needed.
 
+### Teaching it a widget instead
+
+When a repeated group has no definition, you can teach it rather than wait for
+one. Fill the widget by hand once and the extension infers a definition from it:
+
+```
+References · 2 blocks · 3 fields            boards.greenhouse.io
+                              [ Save ]  [ Not now ]
+```
+
+What it learns is the same shape as a hand-written section — `anchor` (how to
+find the block), `confirm` (proof it is the group), `fields` (slug → label
+keywords), `addButton`, and one row of **values** per block. So replay is the
+same, already-guarded engine: it will not grow a widget it cannot verify, and a
+definition whose labels no longer match does **nothing at all** rather than
+clicking at random.
+
+It only offers a widget when it is *sure*: a repeated group, ≥2 fields **you**
+typed into (a field the fill wrote never counts), and ≥2 of those with readable
+labels. A widget whose fields have no labels is refused and the reason is shown —
+a definition keyed by position or a React id would rot on the next deploy.
+
+Each field's value comes from one of exactly two places:
+
+| Source | Example | On replay |
+|---|---|---|
+| **Profile key** — only when the value you typed *is* the stored value | School → `profile.school` | resolved fresh, so it tracks profile edits |
+| **Literal** — captured as typed | a referee's name or email | kept as stored, since the profile has nowhere for it |
+
+Candidates live under their own storage key and only become real on **Save**, so
+a candidate can never fill a live form. Saved widgets appear on the profile page
+with their host, field count, times used and when last used — delete any that has
+gone stale. A learned widget is applied **first**, before the page-wide passes,
+and claims its fields so nothing downstream can overwrite them.
+
 ## Tests
 
 The suite runs in Node with jsdom, loading the **real** source files and the
@@ -302,3 +343,8 @@ the published package.
 - **Calendar-popup date pickers** (react-datepicker-style) are not driven; a
   plain `input[type=date]` or a month/year pair is.
 - Workday's live DOM has not been verified against a real application locally.
+- **Learned widgets** handle repeated groups with readable labels. A widget whose
+  fields have no labels is refused (nothing is guessed), and widgets that are not
+  repeated groups at all — wizards, calendar-popup date pickers, drag-and-drop —
+  cannot be taught this way. A learned definition lives per host, so a widget
+  that only appears on one company's board is learned once for that board.

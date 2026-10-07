@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Private Job Autofill",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Privacy-first, zero-lag job application autofill with an application tracker, multiple profiles, cover-letter templates and Shadow DOM support. 100% local storage. No tracking, no telemetry, no external requests.",
   "permissions": ["storage", "unlimitedStorage", "activeTab", "scripting"],
   "host_permissions": [

@@ -12,6 +12,10 @@ const LEARNED_KEY = JOB_AUTOFILL_SHARED.keys.learned;
 const RUNS_KEY = JOB_AUTOFILL_SHARED.keys.runs;
 const PROFILES_KEY = JOB_AUTOFILL_SHARED.keys.profiles;
 const APPS_KEY = JOB_AUTOFILL_SHARED.keys.applications;
+// Remembered widgets: the pending "remember this widget?" offers, and the saved
+// definitions the fill pipeline replays first.
+const RECIPES_KEY = JOB_AUTOFILL_SHARED.keys.recipes;
+const WIDGET_CANDIDATES_KEY = JOB_AUTOFILL_SHARED.keys.widgetCandidates;
 
 // The injected content scripts, in load order. They share the
 // window.__JobAutofill namespace inside the page's isolated world, so the
