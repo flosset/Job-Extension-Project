@@ -306,8 +306,8 @@
    * Fill every self-identification key rendered as a custom widget, then any
    * answer-bank entry whose keyword matches a dropdown.
    */
-  JA.fillCombosPass = async function (profile) {
-    const used = new Set();
+  JA.fillCombosPass = async function (profile, used) {
+    used = used || new Set();
     let count = 0;
 
     // Every profile key that has a value: the driver only commits when the
@@ -429,12 +429,16 @@
     return out;
   };
 
-  /** Run combo filling, retrying once if the widgets had not hydrated yet. */
-  JA.fillCombos = async function (profile) {
-    let count = await JA.fillCombosPass(profile);
+  /**
+   * Run combo filling, retrying once if the widgets had not hydrated yet.
+   * `used` is the run-wide ownership set, so a dropdown a remembered widget (or
+   * an earlier pass) already filled is never opened and answered again.
+   */
+  JA.fillCombos = async function (profile, used) {
+    let count = await JA.fillCombosPass(profile, used);
     if (count === 0 && JA.comboControls().length > 0) {
       await JA.sleep(1200);
-      count = await JA.fillCombosPass(profile);
+      count = await JA.fillCombosPass(profile, used);
     }
     return count;
   };

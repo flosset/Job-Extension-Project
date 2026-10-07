@@ -188,13 +188,18 @@
     }
   }
 
-  /** Run a full fill pass over the current DOM; returns { filled, used }. */
-  function fillEverything(profile) {
+  /**
+   * Run a full fill pass over the current DOM; returns { filled, used }.
+   * `used` (optional) is the run-wide ownership set: pass one in and this pass
+   * will neither take a field already claimed by an earlier pass nor let a later
+   * one take what it claims.
+   */
+  function fillEverything(profile, used) {
     // JA.fieldPool walks open shadow roots too, so a web-component field is
     // found exactly like a plain one.
     const pool = JA.fieldPool().filter(JA.isFillable);
 
-    const used = new Set();
+    used = used || new Set();
     let filled = 0;
 
     // Split phone widgets first (Taleo/Workday): the country-code selector and
@@ -425,7 +430,7 @@
    * such as Greenhouse/Workday often render the form after script injection)
    * and retry the fill as soon as something matching appears.
    */
-  function waitForFields(profile, timeoutMs) {
+  function waitForFields(profile, timeoutMs, used) {
     return new Promise((resolve) => {
       let settled = false;
       let timer = null;
@@ -457,7 +462,7 @@
           return;
         }
         lastAttempt = now;
-        const result = fillEverything(profile);
+        const result = fillEverything(profile, used);
         if (result.filled > 0) settle(result);
       };
 
@@ -466,7 +471,7 @@
         childList: true,
         subtree: true
       });
-      timer = setTimeout(() => settle(fillEverything(profile)), timeoutMs);
+      timer = setTimeout(() => settle(fillEverything(profile, used)), timeoutMs);
     });
   }
 
@@ -493,18 +498,35 @@
         .join(" ");
     }
 
+    // Remembered widgets FIRST. A widget the user taught us is more specific
+    // knowledge than any generic label match, so it claims its fields before the
+    // page-wide passes can mistake them for something else (a "Reference Email"
+    // is not the user's email). The whole run shares ONE ownership set, so
+    // nothing downstream can write a field this pass already answered.
+    const used = new Set();
+    let filled = 0;
+    let widgets = 0;
+    if (JA.fillLearnedWidgets) {
+      try {
+        const applied = await JA.fillLearnedWidgets(profile, used);
+        widgets = (applied && applied.filled) || 0;
+        filled += widgets;
+      } catch (err) {
+        /* a rotten recipe must never break the rest of the fill */
+      }
+    }
+
     // Run the fill; if nothing matched, the form may still be hydrating (React
     // SPAs such as Greenhouse/Workday render late), so watch the DOM briefly
     // and retry before reporting.
-    let result = fillEverything(profile);
-    if (result.filled === 0) {
-      result = await waitForFields(profile, 2000);
+    let result = fillEverything(profile, used);
+    if (result.filled === 0 && widgets === 0) {
+      result = await waitForFields(profile, 2000, used);
     }
-    let filled = result.filled;
-    const used = result.used;
+    filled += result.filled;
 
     // Custom react-select style dropdowns are not <select> elements.
-    filled += await JA.fillCombos(profile);
+    filled += await JA.fillCombos(profile, used);
 
     // Repeatable sections (Workday "Work Experience", "Education"): reuse +
     // overwrite, and add when needed. Surplus blocks are only REMOVED when the
@@ -607,6 +629,17 @@
         JA.armLearning(missing);
       } catch (err) {
         /* learning is a bonus — it must never break a fill */
+      }
+    }
+
+    // "Remember this widget": a repeated group we have no definition for (a
+    // References block, a bespoke education widget) gets filled by hand too.
+    // What the user types there can teach us the widget for next time.
+    if (JA.armWidgetLearning) {
+      try {
+        JA.armWidgetLearning(used);
+      } catch (err) {
+        /* a bonus like the answer bank — never allowed to break a fill */
       }
     }
   }

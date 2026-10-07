@@ -335,11 +335,20 @@ function loadWorker(store, control) {
   t("E: the run completes normally afterwards", worker.last() === "2", worker.last());
 
   // ---- F. the badge has exactly one owner --------------------------------
+  // The flash window is set EXPLICITLY here: the earlier section shrank it to
+  // 120 ms to prove the fallback, which is too tight to survive a 31-suite
+  // parallel run (the flash could expire mid-assertion). A big window proves
+  // the precedence, then a forced render with a tiny one proves the fallback.
+  worker.api.state.flashMs = 3000;
   store.learnedAnswers.candidates = [{ question: "Q1", value: "a", site: "", at: 1 }];
   worker.listeners.storage({ learnedAnswers: { newValue: {} } }, "local");
   await sleep(25);
   t("F: a fresh result outranks the review count", worker.last() === "2", worker.last());
-  await sleep(260);
+  worker.api.state.flashMs = 40;
+  // A storage change forces a render, so the fallback never depends on a timer
+  // that was scheduled with the OLD window.
+  worker.listeners.storage({ learnedAnswers: { newValue: {} } }, "local");
+  await sleep(150);
   t(
     "F: the review count takes over once the flash expires",
     worker.last() === "1",

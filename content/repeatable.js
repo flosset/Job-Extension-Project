@@ -323,6 +323,13 @@
     return { filled, removed, surplus, skipped: filled === 0 };
   }
 
+  /**
+   * Exposed so a LEARNED widget definition can be replayed by this same,
+   * already-guarded engine: it takes a SECTIONS-shaped spec plus the entries to
+   * write, and refuses to grow or mutate anything it cannot verify.
+   */
+  JA.fillSectionBlocks = fillSection;
+
   /** Which stored profile array feeds which section definition. */
   const SECTION_ENTRIES = [
     { section: "workExperience", profile: "workExperiences" },
