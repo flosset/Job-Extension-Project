@@ -660,7 +660,13 @@
     }
   };
 
-  /** First element under `root` whose label/signal matches the keywords. */
+  /**
+   * First element under `root` whose label/signal matches the keywords.
+   * `opts.used` (a Set) is honoured: a control another pass already filled is
+   * never handed out again, so two passes that both recognise a field can never
+   * both write it. Without this the section engine would re-fill controls the
+   * page-wide passes had already answered.
+   */
   JA.findFieldByKeywords = function (root, keywords, opts) {
     opts = opts || {};
     if (!keywords || !keywords.length) return null;
@@ -671,6 +677,7 @@
       )
     );
     for (const el of els) {
+      if (opts.used && opts.used.has(el)) continue;
       if (opts.tagName && el.tagName !== opts.tagName) continue;
       if (opts.type && (el.type || "").toLowerCase() !== opts.type) continue;
       if (!opts.type && JA.isComboboxInput && JA.isComboboxInput(el)) continue;

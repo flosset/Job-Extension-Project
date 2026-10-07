@@ -41,6 +41,10 @@
     // 2. Native <select> / text input / contenteditable.
     const el = JA.findFieldByKeywords(scope, keywords, opts);
     if (!el) return false;
-    return fillElement(el, value);
+    const filled = fillElement(el, value);
+    // Claim it when it took the value: a later key in the same block — or a
+    // later pass — must not be handed a control this one already answered.
+    if (filled) used.add(el);
+    return filled;
   };
 })();

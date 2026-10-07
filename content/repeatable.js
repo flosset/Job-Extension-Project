@@ -177,8 +177,11 @@
    * Fill one block from one entry; returns how many fields were set.
    * Each sub-field goes through the generic dispatcher, so a block can hold
    * text inputs, native <select>s or react-select comboboxes on any platform.
+   * `used` is the run-wide ownership set: a field another pass already filled is
+   * skipped, and anything this block fills is claimed, so a page-wide pass and
+   * this section can never both write the same control.
    */
-  async function fillBlock(block, entry, section) {
+  async function fillBlock(block, entry, section, used) {
     let count = 0;
     const yearMode = section.dateFormat === "year";
 
@@ -195,7 +198,7 @@
       let ok = false;
       try {
         ok = JA.fillFieldByKeywords
-          ? await JA.fillFieldByKeywords(block, section.fields[key], text)
+          ? await JA.fillFieldByKeywords(block, section.fields[key], text, { used })
           : false;
       } catch (err) {
         ok = false;
@@ -205,11 +208,13 @@
 
     if (typeof entry.current === "boolean") {
       const box = JA.findFieldByKeywords(block, section.fields.current, {
-        type: "checkbox"
+        type: "checkbox",
+        used
       });
       if (box) {
         try {
           JA.setCheckbox(box, entry.current);
+          if (used) used.add(box);
           count++;
         } catch (err) {
           /* skip */
@@ -293,7 +298,7 @@
     let filled = 0;
     for (let i = 0; i < entries.length; i++) {
       if (!blocks[i]) continue;
-      filled += await fillBlock(blocks[i], entries[i], section);
+      filled += await fillBlock(blocks[i], entries[i], section, used);
     }
 
     // Surplus blocks beyond the profile's entries: always counted, deleted

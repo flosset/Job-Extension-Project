@@ -3,6 +3,8 @@
 //   2. a confirmation dialog is accepted only if it APPEARED because of the
 //      delete click we just made, and only if it is actually about deleting —
 //      an unrelated open modal must never be clicked.
+//   3. a control one pass has filled is CLAIMED (`used`): no later pass — a
+//      page-wide pass or the section engine — can write the same field again.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -181,6 +183,61 @@ const profile = { workExperiences: ENTRIES };
   await JA.deleteSectionBlock(block4, WORK);
   t("C4: generic OK accepted for a delete prompt", genericOk.counts["OK"] === 1, genericOk.counts["OK"]);
   genericOk.d.remove();
+
+  // --- D. the run-wide `used` set is honoured END TO END -------------------
+  // A later pass (the widget-learning engine, or any page-wide pass) must never
+  // be handed a control an earlier pass already filled. Guard the mechanism.
+  makeSection(1);
+  const dBlock = document.querySelector("#work-section .exp-block");
+  const dField = document.getElementById("jt0");
+  t(
+    "D1: without `used` the field is found",
+    JA.findFieldByKeywords(dBlock, ["job title"]) === dField
+  );
+  t(
+    "D2: a used field is skipped",
+    JA.findFieldByKeywords(dBlock, ["job title"], { used: new Set([dField]) }) === null
+  );
+
+  // --- E. a pass does not overwrite a field another pass owns -------------
+  makeSection(1);
+  const ownField = document.getElementById("jt0");
+  ownField.value = "PRESET BY ANOTHER PASS";
+  const claims = new Set([ownField]);
+  const oneEntry = { workExperiences: [ENTRIES[0]] };
+  const e = await JA.fillRepeatableSections(oneEntry, claims);
+  t("E1: the owned field keeps its value", ownField.value === "PRESET BY ANOTHER PASS", ownField.value);
+  t("E2: its sibling still fills", document.getElementById("co0").value === "Acme", document.getElementById("co0").value);
+  t("E3: the owned field is not counted", e.filled === 2, e.filled);
+  t(
+    "E4: what was filled is now claimed",
+    claims.has(document.getElementById("co0")) && claims.has(document.getElementById("fr0")),
+    claims.size
+  );
+
+  // --- F. the section claims every one of its fields once it has run -------
+  // (Belt and braces with E: fillSection marks the block, so a pass that runs
+  // AFTER the sections cannot take a widget field either.)
+  makeSection(1);
+  const after = new Set();
+  await JA.fillRepeatableSections(oneEntry, after);
+  t(
+    "F1: block fields are claimed after the run",
+    after.has(document.getElementById("jt0")) &&
+      after.has(document.getElementById("co0")) &&
+      after.has(document.getElementById("fr0")),
+    after.size
+  );
+
+  // --- G. the dispatcher itself claims what it fills ----------------------
+  makeSection(1);
+  const gUsed = new Set();
+  const gField = document.getElementById("jt0");
+  const g1 = await JA.fillFieldByKeywords(document, ["job title"], "Engineer II", { used: gUsed });
+  t("G1: a filled field is reported and claimed", g1 === true && gUsed.has(gField), g1);
+  const g2 = await JA.fillFieldByKeywords(document, ["job title"], "Overwrite Me", { used: gUsed });
+  t("G2: a claimed field is not filled twice", g2 === false, g2);
+  t("G3: and its value is untouched", gField.value === "Engineer II", gField.value);
 
   console.log(
     `\n${fail === 0 ? "REPEATABLE-SAFETY E2E PASS" : "REPEATABLE-SAFETY E2E FAIL"} (${pass} passed, ${fail} failed)`
