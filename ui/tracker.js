@@ -40,17 +40,22 @@ async function writeApplications() {
   }
 }
 
-/** The row for a job we have applied to before, or null. */
+/**
+ * A job we have applied to before, or null: { entry, level }, where `level` is
+ * "same" (this exact posting) or "possible" (same company and role — a warning,
+ * not a certainty). "same" wins if any row matches that way.
+ */
 function previousApplication(page) {
   if (!page) return null;
   const now = Date.now();
-  return (
-    applicationState.items.find(
-      (entry) =>
-        JOB_AUTOFILL_SHARED.sameApplication(entry, page) &&
-        now - (entry.lastAt || 0) > DUPLICATE_QUIET_MS
-    ) || null
-  );
+  let possible = null;
+  for (const entry of applicationState.items) {
+    if (now - (entry.lastAt || 0) <= DUPLICATE_QUIET_MS) continue;
+    const level = JOB_AUTOFILL_SHARED.applicationMatch(entry, page);
+    if (level === "same") return { entry, level: "same" };
+    if (level === "possible" && !possible) possible = { entry, level: "possible" };
+  }
+  return possible;
 }
 
 /**

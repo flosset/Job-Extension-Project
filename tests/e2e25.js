@@ -629,6 +629,97 @@ async function reopened(store, tabId) {
   t("M: the known half is prefilled", half.d.getElementById("askCompany").value === "Nvidia", half.d.getElementById("askCompany").value);
   t("M: the missing half starts empty", half.d.getElementById("askRole").value === "");
 
+  // ---- N. precise identity: keep job ids, drop tracking -------------------
+  const uk = (u) => SHARED.urlKey(u);
+  const gh = "https://boards.greenhouse.io/acme/jobs/1";
+  t(
+    "N: a job-id parameter is kept (distinct postings stay distinct)",
+    uk(gh + "?gh_jid=999") !== uk(gh + "?gh_jid=888"),
+    uk(gh + "?gh_jid=999")
+  );
+  t(
+    "N: tracking parameters are dropped",
+    uk("https://x.com/j/1?gh_jid=9&utm_source=li&gclid=abc") === uk("https://x.com/j/1?gh_jid=9"),
+    uk("https://x.com/j/1?gh_jid=9&utm_source=li&gclid=abc")
+  );
+  t(
+    "N: parameter order does not matter",
+    uk("https://x.com/j?a=1&b=2") === uk("https://x.com/j?b=2&a=1")
+  );
+  const p1 = { company: "Acme", role: "Software Engineer", url: "https://acme.com/j/1" };
+  const p2 = { company: "Acme", role: "Software Engineer", url: "https://acme.com/j/2" };
+  t(
+    "N: two postings at one company+role do NOT merge",
+    SHARED.sameApplication(p1, p2) === false
+  );
+  t(
+    "N: but they are flagged as only a POSSIBLE duplicate",
+    SHARED.applicationMatch(p1, p2) === "possible"
+  );
+  t(
+    "N: the same posting is a definite match",
+    SHARED.applicationMatch(p1, { ...p1, url: "https://acme.com/j/1?utm_campaign=x" }) === "same"
+  );
+
+  // ---- O. warned BEFORE filling, and "possible" is not "certain" ----------
+  const oldWhen = Date.now() - 6 * 60 * 60 * 1000;
+  const seedRow = (url) => ({
+    id: "s1",
+    company: "Acme",
+    role: "Engineer",
+    url,
+    at: oldWhen,
+    lastAt: oldWhen,
+    times: 1,
+    status: "applied"
+  });
+
+  // The tab URL is the posting we already logged -> warned on OPEN, before any
+  // Fill has run at all.
+  const seenStore = { [APPS_KEY]: { items: [seedRow("https://acme.com/j/1")] } };
+  const warned = openPopup(seenStore);
+  await sleep(60);
+  t(
+    "O: a repeat is warned about BEFORE any fill",
+    /already applied to this posting/i.test(statusText(warned)),
+    statusText(warned)
+  );
+
+  // A DIFFERENT URL cannot be called a repeat from the URL alone — company and
+  // role are only known once the page has reported them (see possFill below).
+  const possStore = { [APPS_KEY]: { items: [seedRow("https://acme.com/j/1")] } };
+  const poss = openPopup(possStore, {
+    tabs: [{ id: 7, title: "Engineer - Acme", url: "https://acme.com/j/9" }]
+  });
+  await sleep(60);
+  t(
+    "O: a different URL is not called a repeat on open",
+    !/applied/i.test(statusText(poss)),
+    statusText(poss)
+  );
+
+  const possFillStore = { [APPS_KEY]: { items: [seedRow("https://acme.com/j/1")] } };
+  const possFill = openPopup(possFillStore, {
+    tabs: [{ id: 7, title: "Engineer - Acme", url: "https://acme.com/j/9" }]
+  });
+  await sleep(40);
+  await fillWith(possFill, {
+    company: "Acme",
+    role: "Engineer",
+    url: "https://acme.com/j/9",
+    host: "acme.com"
+  });
+  t(
+    "O: a possible repeat is logged as its own row",
+    possFillStore[APPS_KEY].items.length === 2,
+    possFillStore[APPS_KEY].items.length
+  );
+  t(
+    "O: and warned as possible, not certain",
+    /Possible repeat/.test(statusText(possFill)),
+    statusText(possFill)
+  );
+
   console.log(
     `\n${fail === 0 ? "TRACKER E2E PASS" : "TRACKER E2E FAIL"} (${pass} passed, ${fail} failed)`
   );

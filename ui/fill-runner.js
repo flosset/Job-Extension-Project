@@ -142,13 +142,14 @@ const aggregate = {
     // BEFORE this fill, so a run can never report itself as its own duplicate.
     const page = r.page;
     let duplicate = null;
-    if (page && (page.company || page.role) && typeof previousApplication === "function") {
+    if (page && typeof previousApplication === "function") {
       const previous = previousApplication(page);
-      if (previous) {
+      if (previous && previous.entry) {
         duplicate = {
-          company: previous.company,
-          role: previous.role,
-          at: previous.lastAt || previous.at
+          level: previous.level,
+          company: previous.entry.company,
+          role: previous.entry.role,
+          at: previous.entry.lastAt || previous.entry.at
         };
       }
     }
@@ -193,7 +194,7 @@ const aggregate = {
     // The duplicate warning comes first: it is the reason the user needs to
     // read this line at all.
     if (duplicate) {
-      notes.push(`⚠️ Already applied here on ${formatWhen(duplicate.at)}.`);
+      notes.push(duplicateNote(duplicate));
     } else if (willLog) {
       notes.push("📋 Logged to your applications — mark it applied once you submit.");
     }
@@ -645,11 +646,58 @@ async function restoreRun() {
     const el = $("status");
     if (el) {
       el.textContent =
-        (el.textContent ? el.textContent + " " : "") +
-        `⚠️ Already applied here on ${formatWhen(record.duplicate.at)}.`;
+        (el.textContent ? el.textContent + " " : "") + duplicateNote(record.duplicate);
       el.className = "warn";
     }
   }
+}
+
+/**
+ * One line for a duplicate finding. "same" is definite (the posting URL
+ * matches); "possible" is only a warning — the same company and role, which may
+ * well be two different postings.
+ */
+function duplicateNote(dup) {
+  const when = formatWhen(dup.at);
+  if (dup.level === "possible") {
+    return (
+      "⚠️ Possible repeat — you may have applied to " +
+      `"${dup.role || "this role"}" at ${dup.company || "this company"} on ${when}.`
+    );
+  }
+  return `⚠️ Already applied here on ${when}.`;
+}
+
+/**
+ * Warn the moment the popup opens, BEFORE any fill: if this tab's URL is a
+ * posting already in the log, say so up front. That is what makes the "warned
+ * about before you fill it again" promise real — it reads the log as it stands,
+ * with no injection at all. (The fill later re-checks with the company + role
+ * the page reports, which can only ever add a "possible" warning.)
+ */
+async function checkDuplicateOnOpen() {
+  if (typeof previousApplication !== "function") return;
+  let url = "";
+  try {
+    if (typeof loadApplications === "function") await loadApplications();
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    url = (tab && tab.url) || "";
+  } catch (err) {
+    return; // no tabs access here (e.g. the options page) — nothing to check
+  }
+  if (!url || !/^https?:/i.test(url)) return;
+  const seen = previousApplication({ url });
+  if (!seen || !seen.entry) return;
+  const el = $("status");
+  if (!el) return;
+  const when = formatWhen(seen.entry.lastAt || seen.entry.at);
+  el.textContent =
+    seen.level === "same"
+      ? `⚠️ You have already applied to this posting (${when}).`
+      : "⚠️ You may have already applied to " +
+        `"${seen.entry.role || "this role"}" at ` +
+        `${seen.entry.company || "this company"} (${when}).`;
+  el.className = "warn";
 }
 
 /** Local wall-clock time for a stored timestamp. */

@@ -27,8 +27,13 @@ no telemetry, no accounts.
   Workday forms — and the toolbar badge reports the result.
 - **Keeps an application log.** Pressing Fill on a posting records the company,
   role, URL and date **as \"in progress\"** — filling a form is not submitting it,
-  and one click marks a row **applied** once you have. A page you have applied to
-  before is **warned about** too — so a 100-application search never repeats work.
+  and one click marks a row **applied** once you have. Opening the popup on a
+  posting you have already logged **warns you before you fill**; a *different*
+  posting that merely shares the company and role is a **possible** repeat, never
+  a certainty. Postings are told apart by their URL including any job-id
+  parameter (`?gh_jid=…`, `?jk=…`), with only tracking parameters dropped, so two
+  "Software Engineer" roles at one company stay two applications — a
+  100-application search never repeats work.
   When the page does not say which job it is, the popup **asks** — "Which job is
   this?" — rather than filing a nameless row; whatever the page did give is
   prefilled, and every row's name stays editable afterwards. A status per row

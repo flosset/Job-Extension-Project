@@ -101,6 +101,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // The popup is a fresh document on every open, so rebuild the "fields left
     // for you" list from the last run on this tab instead of losing it.
     restoreRun();
+    // Warn BEFORE any fill if this tab is a posting already in the log.
+    if (typeof checkDuplicateOnOpen === "function") checkDuplicateOnOpen();
   });
 
   // The active profile can also be switched from another page (the popup's

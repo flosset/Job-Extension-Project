@@ -279,16 +279,50 @@ var JOB_AUTOFILL_SHARED = {
 
   // --- Application log ------------------------------------------------------
 
-  /** Canonical URL for comparison: host + path, no query, no trailing slash. */
+  /**
+   * Parameters we can safely drop when comparing URLs. Boards identify a
+   * POSTING with a query parameter — Greenhouse's `?gh_jid=`, Lever's `?jk=`,
+   * Workday's requisition params — so stripping the whole query (as this once
+   * did) collapsed every posting on a board into one. Only these known
+   * disposable trackers are removed; everything else is kept.
+   */
+  trackingParams: [
+    "gclid", "fbclid", "msclkid", "yclid", "dclid", "mc_cid", "mc_eid",
+    "igshid", "vero_id", "wt_mc", "trk", "trkcampaign", "trackingid",
+    "ref", "referrer", "source", "src", "gh_src", "lever-source",
+    "utm", "utm_id", "utm_source", "utm_medium", "utm_campaign",
+    "utm_term", "utm_content", "utm_content_id"
+  ],
+
+  /** A parameter name we can safely drop when comparing two URLs. */
+  isTrackingParam: function (name) {
+    const key = String(name || "").toLowerCase();
+    return this.trackingParams.indexOf(key) !== -1 || key.indexOf("utm_") === 0;
+  },
+
+  /**
+   * Canonical URL for comparison: host + path + the MEANINGFUL query, with the
+   * known tracking parameters removed and the rest SORTED, so the same posting
+   * matches however the link was built.
+   */
   urlKey: function (url) {
     const text = String(url || "").trim();
     if (!text) return "";
+    let parsed;
     try {
-      const parsed = new URL(text);
-      return (parsed.host + parsed.pathname).toLowerCase().replace(/\/+$/, "");
+      parsed = new URL(text);
     } catch (err) {
       return text.toLowerCase().split(/[?#]/)[0].replace(/\/+$/, "");
     }
+    const base = (parsed.host + parsed.pathname).toLowerCase().replace(/\/+$/, "");
+    const keep = [];
+    if (parsed.searchParams && typeof parsed.searchParams.forEach === "function") {
+      parsed.searchParams.forEach((value, key) => {
+        if (!this.isTrackingParam(key)) keep.push(key.toLowerCase() + "=" + value);
+      });
+    }
+    keep.sort();
+    return keep.length ? base + "?" + keep.join("&") : base;
   },
 
   /**
@@ -310,37 +344,43 @@ var JOB_AUTOFILL_SHARED = {
     return words.join(" ") || key;
   },
 
-  /** What makes two entries "the same application". */
-  applicationKey: function (entry) {
-    const e = entry && typeof entry === "object" ? entry : {};
-    const company = this.companyKey(e.company);
-    const role = this.keyOf(e.role);
-    // Only trust the composite when the company is known; otherwise fall back
-    // to the posting URL rather than collapsing two unknown employers into one.
-    if (company && role) return company + "|" + role;
-    if (company) return company + "|";
-    return this.urlKey(e.url);
-  },
-
   /**
-   * Is `entry` the application we already logged as `other`?
-   *
-   * Same company AND role is the real signal; the same posting URL counts too.
-   * A DIFFERENT role at the same company deliberately does not, because that is
-   * a different application rather than duplicate work.
+   * How strongly `other` matches an application we already logged as `entry`:
+   *   "same"     — the same POSTING (its canonical URL matches);
+   *   "possible" — the same company AND role, which we cannot confirm is the
+   *                same posting (a board posts several roles under one title);
+   *   ""         — unrelated.
+   * "possible" is only ever a WARNING — never a reason to merge rows or to treat
+   * the job as done. The user decides.
    */
-  sameApplication: function (entry, other) {
-    const a = this.applicationKey(entry);
-    const b = this.applicationKey(other);
-    if (a && a === b) return true;
+  applicationMatch: function (entry, other) {
     const ua = this.urlKey(entry && entry.url);
     const ub = this.urlKey(other && other.url);
-    if (ua && ua === ub) return true;
+    if (ua && ua === ub) return "same";
     const ca = this.companyKey(entry && entry.company);
     const cb = this.companyKey(other && other.company);
     const ra = this.keyOf(entry && entry.role);
     const rb = this.keyOf(other && other.role);
-    return !!ca && ca === cb && (!ra || !rb);
+    if (ca && ca === cb && (ra === rb || !ra || !rb)) return "possible";
+    return "";
+  },
+
+  /**
+   * Is `other` the application we already logged as `entry`? True ONLY for a
+   * CONFIRMED match: the same posting URL, or the same company+role when we
+   * cannot tell the postings apart by URL. Two DIFFERENT posting URLs are
+   * different applications even at the same company and role, so a board that
+   * posts two "Software Engineer" roles no longer merges them into one.
+   */
+  sameApplication: function (entry, other) {
+    const level = this.applicationMatch(entry, other);
+    if (level === "same") return true;
+    if (level !== "possible") return false;
+    const ua = this.urlKey(entry && entry.url);
+    const ub = this.urlKey(other && other.url);
+    // Both URLs known and different: the company+role match is only "possible",
+    // not enough to call it the same application.
+    return !(ua && ub && ua !== ub);
   },
 
   /** The pipeline states an application can be in. */
