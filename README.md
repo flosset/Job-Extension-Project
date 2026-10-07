@@ -28,10 +28,11 @@ no telemetry, no accounts.
 - **Keeps an application log.** Pressing Fill on a posting records the company,
   role, URL and date, and a page you have applied to before is **warned about
   before you fill it again** — so a 100-application search never repeats work.
-  Each row's name is **editable in place**, because a page does not always say
-  which job it is: whatever the page gave is filled in, and the rest is one click
-  away. A status per row (applied / screen / interview / offer / rejected /
-  withdrawn) and a CSV export live on the options page.
+  When the page does not say which job it is, the popup **asks** — "Which job is
+  this?" — rather than filing a nameless row; whatever the page did give is
+  prefilled, and every row's name stays editable afterwards. A status per row
+  (applied / screen / interview / offer / rejected / withdrawn) and a CSV export
+  live on the options page.
 - **Multiple profiles.** Keep a Frontend resume and a Full-stack one (or a US and
   a UK address) and pick one per application from the popup.
 - **Cover-letter templates** with `{company}` / `{role}` / `{firstName}` /
@@ -81,8 +82,20 @@ Structure words (`embed`, `jobs`, `apply`, `careers`, `v1`, …) and anything
 containing a digit (`career5`, `wd5`) are rejected, so a URL can never produce a
 bogus employer. A page that *does* name itself always wins over its URL.
 
-When nothing at all can be found, the row shows the site host and the name is one
-click away, because **both fields are editable inline**.
+When nothing at all can be found, the row shows the site host, and the popup
+**asks**:
+
+> **Which job is this?**
+> This page didn't give us the company and the role. Add them and they go into
+> your application log.
+> `[ Company ] [ Role ]`  **Save to log** · *Not now*
+
+It asks only when something is missing — if the company was found it asks for the
+role alone — prefills whatever was read, and writes into the row that fill
+already created, never a second one. Because the popup closes on any click, the
+question is remembered per tab and comes back until it is answered; `Not now`
+silences it and leaves the row nameless (nameable later on the options page).
+A job the page *did* name is never asked about.
 
 ## Privacy
 

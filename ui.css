@@ -428,6 +428,29 @@
       resize: vertical;
     }
 
+    /* --- "Which job is this?" --------------------------------------------- */
+    #askJob {
+      margin: 8px 0;
+      padding: 9px 10px;
+      border: 1px solid #dbe6ff;
+      border-left: 3px solid #2563eb;
+      border-radius: 7px;
+      background: #f7faff;
+    }
+    #askJob .sect {
+      grid-column: auto;
+      margin: 0 0 2px;
+      padding: 0;
+      border: 0;
+    }
+    #askJob .note { margin: 0 0 6px; }
+    .ask-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .ask-grid input { width: 100%; }
+
     /* --- Application log (options) ---------------------------------------- */
     .app-row {
       display: flex;

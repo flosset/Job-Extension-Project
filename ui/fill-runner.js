@@ -246,16 +246,11 @@ const aggregate = {
       if (status) status.textContent += " " + notes.join(" ");
     }
 
-    // Remember this run for its tab. The popup document is destroyed the moment
-    // it closes — and the user closes it precisely to go and fill these fields
-    // by hand — so without this the list would vanish exactly when it is useful.
-    saveRun(activeTabId, r, { page, duplicate });
-
-    // Log the application. `willLog` was decided above, BEFORE the duplicate
-    // warning, so this run can never appear to be its own duplicate.
-    if (willLog) {
-      logRun(page);
-    }
+    // Remember this run for its tab (the list vanishes with the popup document),
+    // log the application, and — when the page never told us which job this is —
+    // ASK, rather than filing a nameless row. `willLog` was decided above, BEFORE
+    // the duplicate warning, so this run can never appear to be its own duplicate.
+    finishRun(r, { page, duplicate, willLog });
   },
 
   cancel() {
@@ -511,9 +506,12 @@ async function saveRun(tabId, results, extra) {
     at: Date.now(),
     results,
     // Kept alongside the list so a reopened popup can say the same thing it
-    // said at the time: which job this was, and whether it was a repeat.
+    // said at the time: which job this was, whether it was a repeat, and — when
+    // the page could not name the job — the question still waiting to be
+    // answered (the popup closes on any click, so it has to outlive it).
     page: (extra && extra.page) || null,
-    duplicate: (extra && extra.duplicate) || null
+    duplicate: (extra && extra.duplicate) || null,
+    ask: (extra && extra.ask) || null
   };
 
   // Keep only recent records, and never prune the one just written.
@@ -540,9 +538,59 @@ async function saveRun(tabId, results, extra) {
 /** Log a finished application, so a later visit to the same job can warn you. */
 async function logRun(page) {
   try {
-    if (typeof recordApplication === "function") await recordApplication(page);
+    if (typeof recordApplication !== "function") return null;
+    const result = await recordApplication(page);
+    // recordApplication reports { entry, isNew, repeated } — the ask hangs off
+    // the entry itself, so unwrap it here rather than at every call site.
+    return (result && result.entry) || null;
   } catch (err) {
     /* the log is a convenience — it must never break a fill */
+  }
+  return null;
+}
+
+/**
+ * Persist everything a finished run produced, in one place: the list for this
+ * tab, the application log, and — when the page could not name the job — the one
+ * question worth asking. Answered by the user, never guessed: the row keeps
+ * whatever the page gave, and the ask is closed as soon as they answer it.
+ */
+async function finishRun(results, info) {
+  const page = info.page;
+  let ask = null;
+
+  if (info.willLog) {
+    const entry = await logRun(page);
+    if (entry && (!entry.company || !entry.role)) {
+      ask = {
+        id: entry.id,
+        company: entry.company || "",
+        role: entry.role || ""
+      };
+    }
+  }
+
+  if (ask && typeof showJobAsk === "function") {
+    showJobAsk(ask);
+  }
+  await saveRun(activeTabId, results, { page, duplicate: info.duplicate, ask });
+}
+
+/**
+ * The tab's question has been answered (saved or waved off). Forget it for this
+ * run so reopening the popup does not ask again — a new Fill starts a new run,
+ * and is allowed to ask again.
+ */
+async function markAskAnswered() {
+  if (typeof activeTabId !== "number") return;
+  const runs = await readRuns();
+  const record = runs[String(activeTabId)];
+  if (!record || !record.ask) return;
+  record.ask = null;
+  try {
+    await chrome.storage.local.set({ [RUNS_KEY]: runs });
+  } catch (err) {
+    /* not remembering the answer is a nuisance, not a failure */
   }
 }
 
@@ -569,12 +617,18 @@ async function restoreRun() {
   }
 
   const list = Array.isArray(results.unfilled) ? results.unfilled : [];
-  // Nothing left to show AND nothing to warn about: say nothing at all.
-  if (list.length === 0 && !record.duplicate) return;
+  // An unanswered "which job is this?" is re-shown too: the popup closes on any
+  // click, so the question has to outlive the document that asked it.
+  const ask = record.ask && record.ask.id ? record.ask : null;
+  // Nothing left to show, nothing to warn about, nothing to ask: say nothing.
+  if (list.length === 0 && !record.duplicate && !ask) return;
 
   // Point click-to-locate back at this tab: the stored handles are only useful
-  // if we know where to send them.
+  // if we know where to send them. The ask needs it too, to close itself.
   activeTabId = tab.id;
+  if (ask && typeof showJobAsk === "function") {
+    showJobAsk(ask);
+  }
   if (list.length > 0) {
     renderUnfilled(list);
     showGrantRow(results.iframes > 0 && results.frames < 1 + results.iframes);

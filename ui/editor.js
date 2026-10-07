@@ -47,6 +47,10 @@ document.addEventListener("DOMContentLoaded", () => {
   on("exportAppsBtn", "click", exportApplications);
   on("clearAppsBtn", "click", clearApplicationsWithConfirm);
 
+  // The "which job is this?" question, asked only when the page could not say.
+  on("askSaveBtn", "click", saveJobAsk);
+  on("askSkipBtn", "click", dismissJobAsk);
+
   // Any edit in the form means what is on screen differs from what is stored.
   on("profileForm", "input", markDirty);
   on("profileForm", "change", markDirty);

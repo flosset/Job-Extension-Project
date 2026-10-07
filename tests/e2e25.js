@@ -1,4 +1,4 @@
-// e2e25.js — the application tracker.
+﻿// e2e25.js â€” the application tracker.
 //
 //   * what company/role get read off a posting (JSON-LD, page title, and the
 //     deliberate refusal to invent a company from the ATS hostname),
@@ -53,6 +53,9 @@ const POPUP_SHELL = `<!doctype html><html><body>
   <div id="grantRow" hidden></div>
   <div id="learnedSection" hidden><div id="learnedRows"></div></div>
   <div id="appRows"></div>
+  <div id="askJob" hidden><p id="askNote"></p>
+    <input id="askCompany" /><input id="askRole" />
+    <button id="askSaveBtn"></button><button id="askSkipBtn"></button></div>
   <button id="fillBtn"></button><button id="saveBtn"></button>
   <input id="resumeFile" /><button id="clearResumeBtn"></button>
 </body></html>`;
@@ -88,7 +91,9 @@ function openPopup(store, opts) {
       // A getter: the module REASSIGNS this binding when it reloads the log.
       "get applicationState() { return applicationState; }, " +
       "describeApplication, formatWhen, applicationsCsv, setApplicationStatus, " +
-      "setApplicationName, deleteApplication, clearApplications, renderApplications };"
+      "setApplicationName, deleteApplication, clearApplications, renderApplications, " +
+      "showJobAsk, hideJobAsk, saveJobAsk, dismissJobAsk, " +
+      "get jobAsk() { return jobAsk; }, markAskAnswered, readRuns };"
   );
   const api = w.__t;
   api.aggregate.graceMs = 20;
@@ -409,7 +414,7 @@ async function reopened(store, tabId) {
     ["Jobvite", "https://jobs.jobvite.com/wayne-enterprises/job/x", "Wayne Enterprises"]
   ]) {
     const info = boardUrl(url);
-    t(`K: ${label} — the URL names the employer`, info.company === expected, info.company);
+    t(`K: ${label} â€” the URL names the employer`, info.company === expected, info.company);
   }
 
   // The guesses that must NOT happen: a structure word, or a tenant id.
@@ -465,7 +470,7 @@ async function reopened(store, tabId) {
     rows.t.describeApplication({})
   );
 
-  // Typing a name fixes the row — the answer to "the page never told us".
+  // Typing a name fixes the row â€” the answer to "the page never told us".
   const companyBox = row.querySelector(".app-company");
   const roleBox = row.querySelector(".app-role");
   companyBox.value = "Initech";
@@ -505,6 +510,98 @@ async function reopened(store, tabId) {
     /width:\s*auto/.test(ruleFor(".app-name input")),
     ruleFor(".app-name input").trim()
   );
+
+  // ---- L. it ASKS when the page could not name the job -------------------
+  // A posting with no company anywhere: the fill logs a row, and the popup asks
+  // rather than filing something nameless.
+  const nameless = openPopup({});
+  await sleep(50);
+  await nameless.t.fillActiveTab();
+  nameless.t.aggregate.add({
+    type: "JOB_AUTOFILL_RESULT",
+    status: "ok",
+    filled: 1,
+    scanned: 1,
+    frames: 1,
+    page: { company: "", role: "", url: "https://jobs.example.com/apply/9", host: "jobs.example.com" }
+  });
+  await sleep(120);
+
+  const askBox = () => nameless.d.getElementById("askJob");
+  t("L: a nameless job is logged anyway", !!nameless.store[APPS_KEY], JSON.stringify(Object.keys(nameless.store)));
+  t("L: and the popup asks", askBox().hidden === false);
+  t("L: the question names what is missing", /company and the role/.test(nameless.d.getElementById("askNote").textContent), nameless.d.getElementById("askNote").textContent);
+
+  // The popup closes on any click, so the question must come back on reopen.
+  const reopenedAsk = openPopup(nameless.store);
+  await sleep(80);
+  t("L: the question survives closing the popup", reopenedAsk.d.getElementById("askJob").hidden === false);
+
+  // Answering it fills in the row this fill already created (no second row).
+  const askCompany = reopenedAsk.d.getElementById("askCompany");
+  const askRole = reopenedAsk.d.getElementById("askRole");
+  askCompany.value = "Initech";
+  askRole.value = "Data Scientist";
+  reopenedAsk.d.getElementById("askSaveBtn").click();
+  await sleep(60);
+  t("L: saving writes it into the existing row", nameless.store[APPS_KEY].items.length === 1, nameless.store[APPS_KEY].items.length);
+  t("L: the company is stored", nameless.store[APPS_KEY].items[0].company === "Initech", nameless.store[APPS_KEY].items[0].company);
+  t("L: the role is stored", nameless.store[APPS_KEY].items[0].role === "Data Scientist");
+  t("L: the question closes", reopenedAsk.d.getElementById("askJob").hidden === true);
+  t("L: and says so", /Saved to your applications/.test(reopenedAsk.d.getElementById("status").textContent));
+
+  const afterAnswer = openPopup(nameless.store);
+  await sleep(80);
+  t("L: reopening after answering does NOT ask again", afterAnswer.d.getElementById("askJob").hidden === true);
+
+  // "Not now" stops the nagging without writing anything.
+  const skipped = openPopup({});
+  await sleep(50);
+  await skipped.t.fillActiveTab();
+  skipped.t.aggregate.add({
+    type: "JOB_AUTOFILL_RESULT",
+    status: "ok",
+    filled: 1,
+    scanned: 1,
+    frames: 1,
+    page: { company: "", role: "", url: "https://jobs.example.com/apply/10", host: "jobs.example.com" }
+  });
+  await sleep(120);
+  t("L: it asks on a fresh page", skipped.d.getElementById("askJob").hidden === false);
+  skipped.d.getElementById("askSkipBtn").click();
+  await sleep(60);
+  t("L: 'Not now' closes it", skipped.d.getElementById("askJob").hidden === true);
+  t("L: 'Not now' still left a row", skipped.store[APPS_KEY].items.length === 1);
+  t("L: 'Not now' wrote no name", skipped.store[APPS_KEY].items[0].company === "");
+  const skippedAgain = openPopup(skipped.store);
+  await sleep(80);
+  t("L: and it does not ask again this run", skippedAgain.d.getElementById("askJob").hidden === true);
+
+  // ---- M. a job the page DID name is never asked about ------------------
+  const known = openPopup({});
+  await sleep(50);
+  await fillWith(known, { company: "Acme Corp", role: "Senior Dev", url: "https://acme.com/j/1", host: "acme.com" });
+  t("M: no question when both are known", known.d.getElementById("askJob").hidden === true);
+  t("M: nothing to save", known.t.jobAsk === null);
+
+  // A half-known job asks for exactly the missing half, prefilled.
+  const half = openPopup({});
+  await sleep(50);
+  await half.t.fillActiveTab();
+  half.t.aggregate.add({
+    type: "JOB_AUTOFILL_RESULT",
+    status: "ok",
+    filled: 1,
+    scanned: 1,
+    frames: 1,
+    page: { company: "Nvidia", role: "", url: "https://nvidia.wd5.myworkdayjobs.com/x/y/z", host: "nvidia.wd5.myworkdayjobs.com" }
+  });
+  await sleep(120);
+  t("M: a half-known job is still logged with what we have", half.store[APPS_KEY].items[0].company === "Nvidia");
+  t("M: and it asks for the missing half", half.d.getElementById("askJob").hidden === false);
+  t("M: naming only what is missing", /didn't give us the role/.test(half.d.getElementById("askNote").textContent), half.d.getElementById("askNote").textContent);
+  t("M: the known half is prefilled", half.d.getElementById("askCompany").value === "Nvidia", half.d.getElementById("askCompany").value);
+  t("M: the missing half starts empty", half.d.getElementById("askRole").value === "");
 
   console.log(
     `\n${fail === 0 ? "TRACKER E2E PASS" : "TRACKER E2E FAIL"} (${pass} passed, ${fail} failed)`

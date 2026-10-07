@@ -43,6 +43,23 @@
   </div>
 
   <p id="status" role="status" aria-live="polite"></p>
+
+  <div id="askJob" hidden>
+    <div class="sect">Which job is this?</div>
+    <p class="note" id="askNote">
+      This page didn't give us the company and the role. Add them and they go
+      into your application log.
+    </p>
+    <div class="ask-grid">
+      <input type="text" id="askCompany" placeholder="Company" autocomplete="off" />
+      <input type="text" id="askRole" placeholder="Role" autocomplete="off" />
+    </div>
+    <div class="actions sub">
+      <button type="button" id="askSaveBtn">Save to log</button>
+      <button type="button" id="askSkipBtn" class="ghost">Not now</button>
+    </div>
+  </div>
+
   <ul id="unfilledList" class="unfilled" aria-live="polite"></ul>
 
   <div id="learnedSection" hidden>
