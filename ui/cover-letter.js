@@ -45,13 +45,41 @@ function templateValues(profile, page) {
   };
 }
 
+/** Placeholders a template may use (the editor prints this list). */
+const TEMPLATE_PLACEHOLDERS = [
+  "company", "role", "firstName", "fullName",
+  "email", "phone", "city", "today"
+];
+
+/**
+ * Fill {placeholders} in a template.
+ *
+ * An UNKNOWN placeholder is left exactly as written rather than becoming an
+ * empty string: a typo should be visible in the preview, not silently produce
+ * a letter with a hole in it that you then send.
+ */
+function renderTemplate(body, values) {
+  const map = values && typeof values === "object" ? values : {};
+  const names = Object.keys(map);
+  return String(body == null ? "" : body).replace(
+    /\{\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\}/g,
+    (whole, key) => {
+      const wanted = key.toLowerCase();
+      for (const name of names) {
+        if (name.toLowerCase() === wanted) {
+          const value = map[name];
+          return value == null ? "" : String(value);
+        }
+      }
+      return whole; // unknown placeholder — keep it visible
+    }
+  );
+}
+
 /** The finished letter text for one template. */
 function composeCoverLetter(template, profile, page) {
   if (!template || typeof template.body !== "string") return "";
-  return JOB_AUTOFILL_SHARED.renderTemplate(
-    template.body,
-    templateValues(profile, page)
-  );
+  return renderTemplate(template.body, templateValues(profile, page));
 }
 
 /**

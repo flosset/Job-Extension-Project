@@ -136,37 +136,6 @@ var JOB_AUTOFILL_SHARED = {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   },
 
-  /** Placeholders a template may use (the editor prints this list). */
-  templatePlaceholders: [
-    "company", "role", "firstName", "fullName",
-    "email", "phone", "city", "today"
-  ],
-
-  /**
-   * Fill {placeholders} in a template.
-   *
-   * An UNKNOWN placeholder is left exactly as written rather than becoming an
-   * empty string: a typo should be visible in the preview, not silently produce
-   * a letter with a hole in it that you then send.
-   */
-  renderTemplate: function (body, values) {
-    const map = values && typeof values === "object" ? values : {};
-    const names = Object.keys(map);
-    return String(body == null ? "" : body).replace(
-      /\{\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\}/g,
-      (whole, key) => {
-        const wanted = key.toLowerCase();
-        for (const name of names) {
-          if (name.toLowerCase() === wanted) {
-            const value = map[name];
-            return value == null ? "" : String(value);
-          }
-        }
-        return whole; // unknown placeholder — keep it visible
-      }
-    );
-  },
-
   // --- Phone numbers, split for Taleo/Workday-style pairs -------------------
   // 1 and 7 are the only single-digit calling codes; the two-digit list is
   // complete; anything else that is not one of those is three digits.
