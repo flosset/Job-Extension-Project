@@ -134,11 +134,13 @@ async function recordShortcutRun(run) {
   const top = run.top;
   if (!top || !top.page) return;
   const results = {
-    unfilled: Array.isArray(top.unfilled) ? top.unfilled : [],
-    iframes: Number(top.iframes) || 0,
-    frames: typeof run.expected === "number" ? run.expected : 1,
-    scanned: Number(top.scanned) || 0,
-    filled: run.filled
+    unfilled: run.unfilled,
+    iframes: run.iframes,
+    frames: run.replies,
+    scanned: run.scanned,
+    filled: run.filled,
+    ...run.counts,
+    sectionIssues: run.sectionIssues
   };
 
   let items = [];
@@ -160,7 +162,7 @@ async function recordShortcutRun(run) {
       }
     : null;
 
-  const willLog = !run.sawEmpty && (run.filled > 0 || results.scanned > 0);
+  const willLog = !run.sawEmpty && (run.filled > 0 || results.scanned > 0 || results.attached > 0 || results.flagged > 0);
   let ask = null;
   if (willLog) {
     const logged = await JOB_AUTOFILL_SHARED.logApplication(top.page);
@@ -213,6 +215,11 @@ async function startShortcutFill() {
     replies: 0,
     filled: 0,
     errors: 0,
+    scanned: 0,
+    iframes: 0,
+    unfilled: [],
+    counts: { attached: 0, flagged: 0, kept: 0, zones: 0, acknowledged: 0, removed: 0, surplus: 0 },
+    sectionIssues: [],
     sawEmpty: false,
     top: null,   // the top frame's report: page, unfilled, counts
     timer: null
@@ -248,7 +255,20 @@ chrome.runtime.onMessage.addListener((message, sender) => {
   if (!run || !message || message.type !== "JOB_AUTOFILL_RESULT") return;
   if (!sender || !sender.tab || sender.tab.id !== run.tabId) return;
   run.replies++;
+  run.scanned += Number(message.scanned) || 0;
+  run.iframes = Math.max(run.iframes, Number(message.iframes) || 0);
+  if (message.status === "ok" && Array.isArray(message.unfilled)) {
+    for (const field of message.unfilled) {
+      run.unfilled.push(typeof field === "object"
+        ? Object.assign({}, field, { frameId: sender.frameId })
+        : { label: field, required: false, frameId: sender.frameId });
+    }
+  }
   if (message.status === "ok") {
+    for (const key of Object.keys(run.counts)) run.counts[key] += Number(message[key]) || 0;
+    for (const issue of message.sectionIssues || []) {
+      if (!run.sectionIssues.includes(issue)) run.sectionIssues.push(issue);
+    }
     run.filled += Number(message.filled) || 0;
   } else if (message.status === "error") {
     run.errors++;

@@ -5,8 +5,10 @@
 
 /** Populate the form from chrome.storage.local when the popup opens. */
 async function loadProfile() {
+  const epoch = editEpoch;
   try {
     const data = await chrome.storage.local.get(STORAGE_KEY);
+    if (epoch !== editEpoch || deletingData) return;
     const profile = data[STORAGE_KEY] || {};
     storedProfile = profile;
 
@@ -14,7 +16,7 @@ async function loadProfile() {
     // throwing and reporting a bogus "could not read storage" error.
     for (const field of PROFILE_FIELDS) {
       const el = $(field);
-      if (el && typeof profile[field] === "string") el.value = profile[field];
+      if (el) el.value = typeof profile[field] === "string" ? profile[field] : "";
     }
     if ($("snippetRows")) renderSnippets(profile.customSnippets);
     if ($("templateRows")) renderTemplates(profile.coverLetterTemplates);
@@ -25,10 +27,12 @@ async function loadProfile() {
         ? profile.resumeFile
         : null;
     pendingResume = null;
+    resumeReadToken++;
     renderResumeInfo();
     const replaceBox = $("replaceHistory");
     if (replaceBox) replaceBox.checked = profile.replaceHistory === true;
     renderProfileSummary(profile);
+    markClean();
   } catch (err) {
     setStatus("⚠️ Could not read local storage.", "warn");
   }
@@ -67,6 +71,18 @@ function readForm() {
 // it until Save. Track that explicitly instead of letting it happen silently.
 
 let formDirty = false;
+let editEpoch = 0;
+let deletingData = false;
+let profileWrites = Promise.resolve();
+let editRevision = 0;
+
+/** Every user mutation, including buttons and completed file reads. */
+function profileChanged() {
+  if (deletingData) return;
+  editRevision++;
+  markDirty();
+  scheduleAutoSave();
+}
 
 function markDirty() {
   if (formDirty) return;
@@ -86,12 +102,21 @@ function markClean() {
  * Single write path, shared by the explicit Save, the auto-save and the flag.
  */
 async function persist(profile) {
-  await chrome.storage.local.set({ [STORAGE_KEY]: profile });
-  // Keep the named profile in sync: the page being edited IS the active profile,
-  // so an edit must land in the list too or the two would drift apart.
-  if (typeof syncActiveProfile === "function") {
-    await syncActiveProfile(profile);
-  }
+  const epoch = editEpoch;
+  const revision = editRevision;
+  const task = profileWrites.catch(() => {}).then(async () => {
+    if (deletingData || epoch !== editEpoch) return false;
+    const values = { [STORAGE_KEY]: profile };
+    if (typeof activeProfile === "function" && activeProfile()) {
+      activeProfile().profile = profile;
+      values[PROFILES_KEY] = profileState;
+    }
+    await chrome.storage.local.set(values);
+    return !deletingData && epoch === editEpoch;
+  });
+  profileWrites = task;
+  if (!(await task)) return;
+  if (revision !== editRevision) return;
   storedProfile = profile;
   storedResume = profile.resumeFile;
   pendingResume = null;
@@ -117,7 +142,7 @@ let autoSaveTimer = null;
 let autoSaveEnabled = false;
 
 function scheduleAutoSave() {
-  if (!autoSaveEnabled) return;
+  if (!autoSaveEnabled || deletingData) return;
   clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(() => {
     autoSaveTimer = null;
@@ -126,11 +151,12 @@ function scheduleAutoSave() {
 }
 
 /** Write pending edits immediately (a tab being hidden must not lose them). */
-function flushAutoSave() {
-  if (!autoSaveEnabled || !autoSaveTimer) return;
-  clearTimeout(autoSaveTimer);
-  autoSaveTimer = null;
-  autoSave();
+async function flushAutoSave() {
+  if (deletingData) return;
+  const pending = autoSaveEnabled && formDirty;
+  cancelAutoSave();
+  if (pending) await persist(readForm());
+  await profileWrites;
 }
 
 /**
@@ -159,6 +185,7 @@ async function saveProfile() {
 
 let storedResume = null;   // { name, type, size, dataUrl } already persisted
 let pendingResume = null;  // { ... } picked this session, awaiting Save
+let resumeReadToken = 0;
 
 /** Human-readable file size. */
 function formatSize(bytes) {
@@ -187,7 +214,10 @@ function onResumeFilePicked() {
     return;
   }
   const reader = new FileReader();
+  const epoch = editEpoch;
+  const token = ++resumeReadToken;
   reader.onload = () => {
+    if (epoch !== editEpoch || token !== resumeReadToken || deletingData) return;
     pendingResume = {
       name: file.name,
       type: file.type || "application/octet-stream",
@@ -195,7 +225,7 @@ function onResumeFilePicked() {
       dataUrl: String(reader.result)
     };
     renderResumeInfo();
-    markDirty(); // a freshly picked resume is not stored until Save
+    profileChanged();
   };
   reader.onerror = () => setStatus("⚠️ Could not read that file.", "warn");
   reader.readAsDataURL(file);
@@ -203,12 +233,13 @@ function onResumeFilePicked() {
 
 /** Forget the stored resume. */
 function clearResumeFile() {
+  resumeReadToken++;
   pendingResume = null;
   storedResume = null;
   const input = $("resumeFile");
   if (input) input.value = "";
   renderResumeInfo();
-  markDirty();
+  profileChanged();
 }
 
 // --- Custom snippets (feature 4) -----------------------------------------
@@ -248,7 +279,7 @@ function addSnippetRow(key, value) {
   remove.className = "snip-del";
   remove.title = "Remove snippet";
   remove.textContent = "×";
-  remove.addEventListener("click", () => row.remove());
+  remove.addEventListener("click", () => { row.remove(); profileChanged(); });
 
   row.appendChild(keyInput);
   row.appendChild(valueInput);
@@ -294,7 +325,7 @@ function buildCard(container, title) {
   remove.className = "snip-del";
   remove.title = "Remove";
   remove.textContent = "×";
-  remove.addEventListener("click", () => card.remove());
+  remove.addEventListener("click", () => { card.remove(); profileChanged(); });
   head.appendChild(caption);
   head.appendChild(remove);
 
@@ -562,11 +593,13 @@ function buildExportText(profile, widgets, rest) {
 
   if (rest && typeof rest === "object") {
     const profiles = JOB_AUTOFILL_SHARED.sanitizeProfiles(rest.profiles, null);
-    if (profiles.items.length) out.profiles = profiles;
+    out.profiles = profiles;
     const applications = JOB_AUTOFILL_SHARED.sanitizeApplications(rest.applications);
-    if (applications.items.length) out.applications = applications;
+    out.applications = applications;
     const learned = JOB_AUTOFILL_SHARED.sanitizeLearned(rest.learned);
-    if (learned.candidates.length) out.learned = learned;
+    out.learned = learned;
+    out.widgets = items;
+    out.fullBackup = true;
   }
   return JSON.stringify(out, null, 2);
 }
@@ -592,6 +625,12 @@ function parseImportRecords(text) {
     throw new Error("That file does not contain a profile.");
   }
   return {
+    sections: {
+      widgets: Object.prototype.hasOwnProperty.call(data, "widgets"),
+      profiles: Object.prototype.hasOwnProperty.call(data, "profiles"),
+      applications: Object.prototype.hasOwnProperty.call(data, "applications"),
+      learned: Object.prototype.hasOwnProperty.call(data, "learned")
+    },
     profile,
     widgets: JOB_AUTOFILL_SHARED.sanitizeRecipes(
       data.widgets && typeof data.widgets === "object" ? data.widgets : { items: [] }
@@ -610,20 +649,25 @@ function parseImportText(text) {
 /** Push a profile object into the form (no storage write). */
 function fillFormFromProfile(profile) {
   const source = profile || {};
+  storedProfile = source;
+  resumeReadToken++;
   for (const field of PROFILE_FIELDS) {
-    $(field).value = typeof source[field] === "string" ? source[field] : "";
+    const el = $(field);
+    if (el) el.value = typeof source[field] === "string" ? source[field] : "";
   }
   const replaceBox = $("replaceHistory");
   if (replaceBox) replaceBox.checked = source.replaceHistory === true;
-  renderSnippets(source.customSnippets);
-  renderExperiences(source.workExperiences);
-  renderEducations(source.educations);
+  if ($("snippetRows")) renderSnippets(source.customSnippets);
+  if ($("templateRows")) renderTemplates(source.coverLetterTemplates);
+  if ($("expRows")) renderExperiences(source.workExperiences);
+  if ($("eduRows")) renderEducations(source.educations);
   storedResume =
     source.resumeFile && typeof source.resumeFile === "object"
       ? source.resumeFile
       : null;
   pendingResume = null;
   renderResumeInfo();
+  renderProfileSummary(source);
   markClean();
 }
 
@@ -651,7 +695,8 @@ async function exportProfile() {
       learned: (data && data[LEARNED_KEY]) || null
     };
   } catch (err) {
-    /* back up the profile even if the rest cannot be read */
+    setStatus("Could not read all data — no incomplete backup was downloaded.", "warn");
+    return;
   }
   try {
     const blob = new Blob([buildExportText(readForm(), widgets, rest)], {
@@ -691,21 +736,30 @@ async function onImportFilePicked() {
       setStatus("Restore cancelled — nothing changed.", "warn");
       return;
     }
-    await applyProfile(records.profile);
+    cancelAutoSave();
+    await profileWrites.catch(() => {});
+    const values = { [STORAGE_KEY]: records.profile };
     // Each section is restored only when the file carries it, so an older or
     // partial file never wipes the parts it does not mention.
-    if (records.widgets.length) {
-      await chrome.storage.local.set({ [RECIPES_KEY]: { items: records.widgets } });
+    if (records.sections.widgets) {
+      values[RECIPES_KEY] = { items: records.widgets };
     }
-    if (records.profiles && records.profiles.items.length) {
-      await chrome.storage.local.set({ [PROFILES_KEY]: records.profiles });
+    if (records.sections.profiles) {
+      values[PROFILES_KEY] = records.profiles;
+      const active = records.profiles.items.find((item) => item.id === records.profiles.activeId);
+      if (active) active.profile = records.profile;
+    } else if (typeof activeProfile === "function" && activeProfile()) {
+      activeProfile().profile = records.profile;
+      values[PROFILES_KEY] = profileState;
     }
-    if (records.applications && records.applications.items.length) {
-      await chrome.storage.local.set({ [APPS_KEY]: records.applications });
+    if (records.sections.applications) {
+      values[APPS_KEY] = records.applications;
     }
-    if (records.learned && records.learned.candidates.length) {
-      await chrome.storage.local.set({ [LEARNED_KEY]: records.learned });
+    if (records.sections.learned) {
+      values[LEARNED_KEY] = records.learned;
     }
+    await chrome.storage.local.set(values);
+    fillFormFromProfile(records.profile);
     await refreshAfterRestore();
     setStatus("Restored. Check the fields above, then fill.", "ok");
   } catch (err) {
@@ -739,6 +793,12 @@ async function deleteAllData() {
     return;
   }
   try {
+    deletingData = true;
+    editEpoch++;
+    resumeReadToken++;
+    cancelAutoSave();
+    // Drain already-issued writes before deletion; queued writes are invalidated.
+    await profileWrites.catch(() => {});
     // Everything this extension stored: the profile, the named profiles (each
     // carrying its own resume), anything learned from typing, the remembered
     // "fields left for you" lists, the application log, and the widgets the user
@@ -754,9 +814,30 @@ async function deleteAllData() {
       WIDGET_CANDIDATES_KEY
     ]);
   } catch (err) {
+    deletingData = false;
     setStatus("Could not clear local storage.", "warn");
     return;
   }
   fillFormFromProfile({});
+  profileState = { activeId: "", items: [] };
+  applicationState = { items: [] };
+  learnedState = { candidates: [], skipped: [] };
+  recipeState = { items: [] };
+  widgetCandidates = { candidates: [], skipped: [] };
+  if (typeof aggregate !== "undefined") aggregate.cancel();
+  if (typeof hideJobAsk === "function") hideJobAsk();
+  if (typeof refreshProfileSelect === "function") refreshProfileSelect();
+  if (typeof renderApplications === "function") renderApplications();
+  coverTemplatesState = [];
+  coverPage = null;
+  for (const id of ["learnedRows", "widgetRows", "recipeRows", "unfilledList", "coverPreview"]) {
+    const el = $(id);
+    if (el) el.innerHTML = "";
+  }
+  for (const id of ["learnedSection", "widgetSection", "coverSection"]) {
+    const el = $(id);
+    if (el) el.hidden = true;
+  }
+  deletingData = false;
   setStatus("All local data deleted from this browser.", "ok");
 }

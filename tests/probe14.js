@@ -4,10 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { JSDOM } = require("jsdom");
 
-const SRC = fs.readFileSync(
-  path.join("g:\\Programming\\Job Extension Project", "popup.js"),
-  "utf8"
-);
+const SRC = require("./_popup-source").POPUP_JS;
 
 const dom = new JSDOM(
   `<!doctype html><html><body><div id="status"></div><ul id="unfilledList"></ul>

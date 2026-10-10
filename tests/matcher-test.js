@@ -10,7 +10,7 @@ const fs = require("fs");
 const path = require("path");
 const { JSDOM, VirtualConsole } = require("jsdom");
 
-const APP = "g:\\Programming\\Job Extension Project";
+const APP = path.resolve(__dirname, "..");
 const SOURCE = [
   "content/field-map.js",
   "content/dom-utils.js",

@@ -13,8 +13,10 @@ let learnedState = { candidates: [], skipped: [] };
 
 /** Read the candidates the content script left behind. */
 async function loadLearned() {
+  const epoch = editEpoch;
   try {
     const data = await chrome.storage.local.get(LEARNED_KEY);
+    if (epoch !== editEpoch || deletingData) return;
     learnedState = JOB_AUTOFILL_SHARED.sanitizeLearned(data[LEARNED_KEY]);
   } catch (err) {
     learnedState = { candidates: [], skipped: [] };

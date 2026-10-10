@@ -7,7 +7,7 @@ const fs = require("fs");
 const path = require("path");
 const { JSDOM } = require("jsdom");
 
-const APP = "g:\\Programming\\Job Extension Project";
+const APP = path.resolve(__dirname, "..");
 const SOURCE = require("./_popup-source").CONTENT_SCRIPTS
   .map((f) => fs.readFileSync(path.join(APP, f), "utf8"))
   .join("\n");
@@ -54,6 +54,7 @@ window.chrome = {
   runtime: { sendMessage: () => {} }
 };
 
+window.__jobAutofillDeleteApproval = true;
 window.eval(SOURCE);
 
 function readBlock(i) {
@@ -93,6 +94,16 @@ function readBlock(i) {
     ["block3 'current' ticked", String(b2.current), "true"]
   ];
   let ok = true;
+  const safeDom = new JSDOM(html, { runScripts: "dangerously", pretendToBeVisual: true });
+  safeDom.window.Element.prototype.getClientRects = () => [{ width: 10, height: 10 }];
+  safeDom.window.chrome = window.chrome;
+  safeDom.window.eval(SOURCE);
+  await safeDom.window.__jobAutofillRun;
+  const safeCount = safeDom.window.document.querySelectorAll(".exp-block").length;
+  const safe = safeCount === 4;
+  ok = ok && safe;
+  console.log(`Persisted replaceHistory without per-run approval: ${safe ? "PASS" : "FAIL"}`);
+  safeDom.window.close();
   for (const [name, got, want] of checks) {
     const pass = got === want;
     ok = ok && pass;

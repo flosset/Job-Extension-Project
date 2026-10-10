@@ -9,6 +9,10 @@
 (() => {
   "use strict";
   const JA = (window.__JobAutofill = window.__JobAutofill || {});
+  // Approval is consumed once, including busy/failed runs. A saved preference
+  // is never authorization for deleting fields from an application.
+  const deleteApproved = window.__jobAutofillDeleteApproval === true;
+  delete window.__jobAutofillDeleteApproval;
 
   // Guard against overlapping runs if the button is clicked twice quickly.
   // We still REPORT, because the popup counts on every injected frame
@@ -538,7 +542,7 @@
     if (JA.fillRepeatableSections) {
       try {
         const sections = await JA.fillRepeatableSections(profile, used, {
-          trim: !!profile.replaceHistory
+          trim: deleteApproved
         });
         filled += sections.filled;
         removed = sections.removed;

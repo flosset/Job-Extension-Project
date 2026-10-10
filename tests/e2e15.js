@@ -10,7 +10,7 @@ const fs = require("fs");
 const path = require("path");
 const { JSDOM } = require("jsdom");
 
-const APP_DIR = "g:\\Programming\\Job Extension Project";
+const APP_DIR = path.resolve(__dirname, "..");
 const SRC = ["content/field-map.js", "content/dom-utils.js", "content/files.js"]
   .map((f) => fs.readFileSync(path.join(APP_DIR, f), "utf8"))
   .join("\n");

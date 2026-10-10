@@ -205,7 +205,7 @@ function loadWorker(store, control) {
   await sleep(25);
 
   // ---- D. the shortcut fills without ever opening the popup --------------
-  worker.api.state.flashMs = 120; // fast-forward the flash for this test
+  worker.api.state.flashMs = 3000; // do not expire mid-assertion in parallel runs
   control.tab = { id: 7, url: "chrome://extensions" };
   worker.listeners.command("fill-active-form");
   await sleep(30);
@@ -400,6 +400,21 @@ function loadWorker(store, control) {
     "G: so reopening the popup can rebuild it",
     !!rec && !!rec.page && rec.page.company === "Acme" && rec.page.role === "Engineer"
   );
+
+  control.frames = 2;
+  worker.listeners.command("fill-active-form");
+  await sleep(25);
+  worker.listeners.message({ type: "JOB_AUTOFILL_RESULT", status: "ok", filled: 0,
+    scanned: 0, iframes: 1, page: rec.page, unfilled: [] }, { tab: { id: 7 }, frameId: 0 });
+  worker.listeners.message({ type: "JOB_AUTOFILL_RESULT", status: "ok", filled: 2,
+    scanned: 9, unfilled: [{ label: "Iframe question", ref: "inner-ref", required: true }] },
+    { tab: { id: 7 }, frameId: 12 });
+  await sleep(60);
+  const embedded = store.lastRuns["7"].results;
+  t("G: shortcut remembers embedded-frame fields", embedded.unfilled[0].label === "Iframe question");
+  t("G: preserving the frame identity", embedded.unfilled[0].frameId === 12);
+  t("G: sums scan counts from every frame", embedded.scanned === 9);
+  t("G: preserves actual frame replies", embedded.frames === 2);
 
   console.log(
     `\n${

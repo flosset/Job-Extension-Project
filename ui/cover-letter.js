@@ -223,7 +223,7 @@ function addTemplateRow(name, body) {
   remove.className = "snip-del";
   remove.title = "Remove template";
   remove.textContent = "×";
-  remove.addEventListener("click", () => row.remove());
+  remove.addEventListener("click", () => { row.remove(); profileChanged(); });
 
   const head = document.createElement("div");
   head.className = "tpl-head";

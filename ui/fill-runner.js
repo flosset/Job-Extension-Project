@@ -271,8 +271,13 @@ const aggregate = {
  * about:blank / blob: / data: frames that inherit the embedder's origin;
  * Chrome builds that reject that property fall back to a plain allFrames run.
  */
-async function injectIntoAllFrames(tabId) {
+async function injectIntoAllFrames(tabId, approveDeletion) {
   const target = { tabId, allFrames: true };
+  if (approveDeletion) {
+    await chrome.scripting.executeScript({ target, func: () => {
+      window.__jobAutofillDeleteApproval = true;
+    } });
+  }
   try {
     return await chrome.scripting.executeScript({
       target,
@@ -332,7 +337,7 @@ async function fillActiveTab() {
   }
 
   try {
-    const injected = await injectIntoAllFrames(tab.id);
+    const injected = await injectIntoAllFrames(tab.id, !!(replaceBox && replaceBox.checked));
     // Now that we know how many frames were reached, completion is defined:
     // render once every one of them has reported (or the deadline expires).
     aggregate.setExpected(Array.isArray(injected) ? injected.length : 1);
@@ -349,12 +354,27 @@ async function fillActiveTab() {
       aggregate.cancel();
       setStatus("⚠️ Cannot run on this page (browser/system page).", "warn");
     }
+  } finally {
+    // An unreachable frame must not retain approval for some future shortcut.
+    if (replaceBox && replaceBox.checked) {
+      try {
+        await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true },
+          func: () => { delete window.__jobAutofillDeleteApproval; } });
+      } catch (err) { /* navigation/restricted frames */ }
+    }
   }
 }
 
 /** Handle a result message sent back by an injected autofill.js. */
-function onAutofillResult(message) {
+function onAutofillResult(message, sender) {
   if (!message || message.type !== "JOB_AUTOFILL_RESULT") return;
+  if (sender && sender.tab && sender.tab.id !== activeTabId) return;
+  if (sender && typeof sender.frameId === "number" && Array.isArray(message.unfilled)) {
+    message = Object.assign({}, message, {
+      unfilled: message.unfilled.map((field) => typeof field === "object"
+        ? Object.assign({}, field, { frameId: sender.frameId }) : field)
+    });
+  }
   aggregate.add(message);
 }
 
@@ -416,7 +436,7 @@ async function requestAnySiteAccess() {
 
 /** List the fields we could not fill, so the user knows what is left. */
 /** Ask the page to scroll to and flash one of the fields left for you. */
-async function locateField(ref, li) {
+async function locateField(ref, li, frameId) {
   if (!ref) return;
   if (li) {
     li.classList.add("locating");
@@ -427,7 +447,12 @@ async function locateField(ref, li) {
     // Rejects when no content script answers, i.e. the page was reloaded or
     // navigated since that fill and its stored handles no longer exist. Say so
     // rather than looking like a dead click.
-    await chrome.tabs.sendMessage(activeTabId, { type: "JOB_AUTOFILL_LOCATE", ref });
+    const message = { type: "JOB_AUTOFILL_LOCATE", ref };
+    if (typeof frameId === "number") {
+      await chrome.tabs.sendMessage(activeTabId, message, { frameId });
+    } else {
+      await chrome.tabs.sendMessage(activeTabId, message);
+    }
   } catch (err) {
     setStatus("That page has changed since the fill — press Fill Application again.", "warn");
   }
@@ -468,7 +493,7 @@ function renderUnfilled(entries) {
     if (entry.ref) {
       li.title = "Click to highlight this field on the page";
       li.tabIndex = 0;
-      li.addEventListener("click", () => locateField(entry.ref, li));
+      li.addEventListener("click", () => locateField(entry.ref, li, entry.frameId));
     }
     list.appendChild(li);
   }

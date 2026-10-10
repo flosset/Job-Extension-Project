@@ -7,7 +7,7 @@ const fs = require("fs");
 const path = require("path");
 const { JSDOM } = require("jsdom");
 
-const APP_DIR = "g:\\Programming\\Job Extension Project";
+const APP_DIR = path.resolve(__dirname, "..");
 const { POPUP_JS } = require("./_popup-source");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

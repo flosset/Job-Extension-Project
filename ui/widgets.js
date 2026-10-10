@@ -38,11 +38,13 @@ const isOptionsPage = () =>
 
 /** Read both lists, then render whatever this page shows. */
 async function loadWidgets() {
+  const epoch = editEpoch;
   try {
     const data = await chrome.storage.local.get([
       RECIPES_KEY,
       WIDGET_CANDIDATES_KEY
     ]);
+    if (epoch !== editEpoch || deletingData) return;
     recipeState = JOB_AUTOFILL_SHARED.sanitizeRecipes(data[RECIPES_KEY]);
     widgetCandidates = JOB_AUTOFILL_SHARED.sanitizeWidgetCandidates(
       data[WIDGET_CANDIDATES_KEY]

@@ -57,8 +57,8 @@ document.addEventListener("DOMContentLoaded", () => {
   on("dismissWidgetsBtn", "click", dismissAllWidgets);
 
   // Any edit in the form means what is on screen differs from what is stored.
-  on("profileForm", "input", markDirty);
-  on("profileForm", "change", markDirty);
+  on("profileForm", "input", profileChanged);
+  on("profileForm", "change", profileChanged);
 
   // The popup owns nothing but the "replace history" preference, so persist
   // that the moment it is toggled.
@@ -69,8 +69,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // The full editor (options.html) saves as you type; the popup does not.
   autoSaveEnabled = !!(document.body && document.body.dataset.page === "options");
   if (autoSaveEnabled) {
-    on("profileForm", "input", scheduleAutoSave);
-    on("profileForm", "change", scheduleAutoSave);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") flushAutoSave();
     });
@@ -117,9 +115,10 @@ async function switchProfile() {
 
   // A pending auto-save belongs to the profile being LEFT; letting it fire after
   // the switch would write this form's values into the profile just chosen.
-  cancelAutoSave();
-
-  const ok = await activateProfile(select.value);
+  const nextId = select.value;
+  await flushAutoSave();
+  resumeReadToken++;
+  const ok = await activateProfile(nextId);
   if (!ok) {
     setStatus("Could not switch profile.", "warn");
     refreshProfileSelect();
@@ -241,6 +240,15 @@ function watchProfileSwitch() {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local" || !changes[PROFILES_KEY]) return;
     const next = changes[PROFILES_KEY].newValue;
+    if (!next) {
+      editEpoch++;
+      resumeReadToken++;
+      cancelAutoSave();
+      profileState = { activeId: "", items: [] };
+      fillFormFromProfile({});
+      refreshProfileSelect();
+      return;
+    }
     const activeId = next && typeof next.activeId === "string" ? next.activeId : "";
     if (!activeId || activeId === profileState.activeId) return;
     cancelAutoSave();

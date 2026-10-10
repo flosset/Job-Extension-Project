@@ -55,6 +55,8 @@
   const written = new Set();
   let bank = [];
   let flushTimer = null;
+  let cleared = false;
+  let generation = 0;
 
   const keyOf = (text) =>
     SHARED.keyOf ? SHARED.keyOf(text) : String(text || "").toLowerCase().trim();
@@ -174,6 +176,7 @@
 
   /** Record one committed answer, applying rules 1-4. */
   function record(el) {
+    if (cleared) return;
     const entry = trackedFor(el);
     if (!entry) return; // not a field this fill left for the user
     const question = entry.label;
@@ -251,8 +254,11 @@
    */
   async function flush() {
     flushTimer = null;
+    const epoch = generation;
+    if (cleared) return;
     if (answers.size === 0 && ambiguous.size === 0) return;
     const current = await readLearned();
+    if (cleared || epoch !== generation) return;
     const merged = new Map();
     for (const candidate of current.candidates) {
       const key = keyOf(candidate.question);
@@ -307,6 +313,15 @@
       track(next);
       refreshBank();
     };
+    if (chrome.storage.onChanged) chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local" || !changes[PROFILE_KEY] || changes[PROFILE_KEY].newValue !== undefined) return;
+      cleared = true;
+      generation++;
+      clearTimeout(flushTimer);
+      flushTimer = null;
+      byRef.clear(); byQuestion.clear(); answers.clear(); ambiguous.clear(); written.clear();
+      bank = [];
+    });
   };
 
   /**

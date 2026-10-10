@@ -13,7 +13,7 @@ const fs = require("fs");
 const path = require("path");
 const { JSDOM } = require("jsdom");
 
-const APP = "g:\\Programming\\Job Extension Project";
+const APP = path.resolve(__dirname, "..");
 const { POPUP_JS } = require("./_popup-source");
 const POPUP_HTML = fs.readFileSync(path.join(APP, "popup.html"), "utf8");
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(APP, "manifest.json"), "utf8"));

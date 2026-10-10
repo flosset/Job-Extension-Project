@@ -35,6 +35,8 @@
   const RECIPES_KEY = KEYS.recipes || "jobRecipes";
   const CANDIDATES_KEY = KEYS.widgetCandidates || "widgetCandidates";
   const FLUSH_MS = 600;
+  let cleared = false;
+  let generation = 0;
 
   // A typed value longer than this is a per-application ANSWER, not widget data.
   // A definition is scoped to the site's host, and a board like Greenhouse or
@@ -382,6 +384,7 @@
   }
 
   async function writeCandidate(candidate) {
+    const epoch = generation;
     let current = { candidates: [], skipped: [] };
     try {
       const data = await chrome.storage.local.get(CANDIDATES_KEY);
@@ -392,6 +395,7 @@
       return;
     }
     const list = current.candidates || [];
+    if (cleared || epoch !== generation) return;
     const duplicate = list.some(
       (c) => c.host === candidate.host && c.fingerprint === candidate.fingerprint
     );
@@ -409,8 +413,10 @@
   }
 
   async function noteSkipped(label) {
+    const epoch = generation;
     try {
       const data = await chrome.storage.local.get(CANDIDATES_KEY);
+      if (cleared || epoch !== generation) return;
       const current = SHARED.sanitizeWidgetCandidates
         ? SHARED.sanitizeWidgetCandidates(data[CANDIDATES_KEY])
         : { candidates: [], skipped: [] };
@@ -436,6 +442,7 @@
   /** One widget offer at a time, and never the same one twice in a page load. */
   async function flush() {
     flushTimer = null;
+    if (cleared) return;
     let best = null;
     let skippedLabel = "";
 
@@ -499,6 +506,15 @@
       mine = asSet(nextMine);
       loadKnown(); // a widget saved since the last fill must be recognised
     };
+    if (chrome.storage.onChanged) chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local" || !changes[PROFILE_KEY] || changes[PROFILE_KEY].newValue !== undefined) return;
+      cleared = true;
+      generation++;
+      clearTimeout(flushTimer);
+      flushTimer = null;
+      regions.clear(); proposed.clear();
+      profile = {}; saved = [];
+    });
     loadKnown();
   };
 
@@ -527,6 +543,7 @@
   }
 
   function onCommitted(event) {
+    if (cleared) return;
     const el = event && event.target;
     if (!usableField(el)) return;
     if (mine.has(el)) return; // the fill wrote this, not you

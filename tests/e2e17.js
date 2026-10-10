@@ -6,7 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const { JSDOM } = require("jsdom");
 
-const APP_DIR = "g:\\Programming\\Job Extension Project";
+const APP_DIR = path.resolve(__dirname, "..");
 // The editing surface now lives on the full-page editor, not the popup.
 const html = fs.readFileSync(path.join(APP_DIR, "options.html"), "utf8");
 const { POPUP_JS: SRC } = require("./_popup-source");

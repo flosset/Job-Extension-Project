@@ -304,14 +304,26 @@ cd tests
 npm install
 ```
 
-**Fastest — every suite in parallel (~9 s):**
+**Standard command — every suite in parallel (Windows/macOS/Linux):**
 
 ```
-powershell -NoProfile -File tests\run-all.ps1
+cd tests
+npm test
 ```
 
 Each suite is an independent process and is judged by its own printed verdict
 (plus a check that it printed *a* verdict at all, so a crash can't pass).
+The runner also requires a zero exit code. Paths are relative to the checkout,
+not a developer's drive. The PowerShell runner remains available on Windows.
+
+Safety regressions include delayed/in-flight autosaves during Delete all,
+button-driven edits and completed resume reads, sparse profile switching,
+shadow-root labels/location, and shortcut reports from embedded frames.
+History deletion requires temporary approval from a confirmed popup run;
+ordinary shortcut fills never use the saved preference as deletion authority.
+Backup sections explicitly present but empty are cleared on restore; absent
+sections in older/profile-only files remain untouched. CSV cells that could be
+spreadsheet formulas are prefixed with an apostrophe.
 
 **Or a single suite:**
 

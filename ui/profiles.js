@@ -16,8 +16,10 @@ let profileState = { activeId: "", items: [] };
 
 /** Read them, adopting a v1 single profile the first time. */
 async function loadProfiles() {
+  const epoch = editEpoch;
   try {
     const data = await chrome.storage.local.get([PROFILES_KEY, STORAGE_KEY]);
+    if (epoch !== editEpoch || deletingData) return profileState;
     profileState = JOB_AUTOFILL_SHARED.sanitizeProfiles(
       data[PROFILES_KEY],
       data[STORAGE_KEY]
@@ -43,9 +45,9 @@ async function writeProfiles(activateId) {
   if (activateId) profileState.activeId = activateId;
   const active = activeProfile();
   try {
-    await chrome.storage.local.set({ [PROFILES_KEY]: profileState });
-    // Mirror the active profile into the key the content script reads.
-    if (active) await chrome.storage.local.set({ [STORAGE_KEY]: active.profile });
+    const values = { [PROFILES_KEY]: profileState };
+    if (active) values[STORAGE_KEY] = active.profile;
+    await chrome.storage.local.set(values);
     return true;
   } catch (err) {
     return false;

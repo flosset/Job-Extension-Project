@@ -14,8 +14,10 @@ let applicationState = { items: [] };
 
 /** Read (and coerce) the log. */
 async function loadApplications() {
+  const epoch = editEpoch;
   try {
     const data = await chrome.storage.local.get(APPS_KEY);
+    if (epoch !== editEpoch || deletingData) return applicationState;
     applicationState = JOB_AUTOFILL_SHARED.sanitizeApplications(data[APPS_KEY]);
   } catch (err) {
     applicationState = { items: [] };
@@ -99,7 +101,11 @@ function formatWhen(at) {
 
 /** The log as CSV, for a spreadsheet (quoted, so commas are safe). */
 function applicationsCsv() {
-  const cell = (value) => `"${String(value == null ? "" : value).replace(/"/g, '""')}"`;
+  const cell = (value) => {
+    let text = String(value == null ? "" : value);
+    if (/^[\s]*[=+@-]/.test(text) || /^[\t\r\n]/.test(text)) text = "'" + text;
+    return `"${text.replace(/"/g, '""')}"`;
+  };
   const rows = [
     ["company", "role", "status", "applied", "last", "times", "url"].join(",")
   ];

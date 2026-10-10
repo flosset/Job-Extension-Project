@@ -7,7 +7,7 @@ const fs = require("fs");
 const path = require("path");
 const { JSDOM, VirtualConsole } = require("jsdom");
 
-const APP = "g:\\Programming\\Job Extension Project";
+const APP = path.resolve(__dirname, "..");
 const SOURCE = require("./_popup-source").CONTENT_SCRIPTS
   .map((f) => fs.readFileSync(path.join(APP, f), "utf8"))
   .join("\n");

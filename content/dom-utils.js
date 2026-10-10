@@ -70,7 +70,7 @@
     const labelledBy = el.getAttribute("aria-labelledby");
     if (labelledBy) {
       labelledBy.split(/\s+/).forEach((id) => {
-        const node = document.getElementById(id);
+        const node = elementById(id, el);
         if (node) bits.push(node.textContent);
       });
     }
@@ -195,7 +195,7 @@
   JA.findByRef = function (ref) {
     if (!ref) return null;
     try {
-      return document.querySelector("[" + JA.REF_ATTR + '="' + ref + '"]');
+      return JA.queryAll("[" + JA.REF_ATTR + '="' + ref + '"]')[0] || null;
     } catch (err) {
       return null;
     }
@@ -692,7 +692,7 @@
     const by = el.getAttribute("aria-labelledby");
     if (by) {
       by.split(/\s+/).forEach((id) => {
-        const node = document.getElementById(id);
+        const node = elementById(id, el);
         if (node) bits.push(node.textContent);
       });
     }
