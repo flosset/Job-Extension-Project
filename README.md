@@ -207,6 +207,7 @@ content/combobox.js    react-select driver (open → read → commit → close)
 content/fill.js        generic per-field dispatch (any widget, any scope)
 content/dates.js       month/year select pairs
 content/repeatable.js  Work Experience / Education sections
+content/widget-learn.js  learns a widget definition from watching you fill one
 content/radios.js      Yes/No radio groups
 content/files.js       resume auto-attach
 content/phone.js       split country-code + number pairs
@@ -215,24 +216,38 @@ content/learn.js       watches the fields left for you, records candidates
 content/autofill.js    orchestrator: reads the profile, fills, reports
 ```
 
-`popup.html` and `options.html` are the two screens; both load the same nine UI
+`popup.html` and `options.html` are the two screens; both load the same UI
 scripts, in this order (top-level bindings in classic scripts are visible to
 later ones, so order matters):
 
 ```
-shared.js            the shared list + keys + the dedupe rule
-ui/core.js           constants and the null-safe DOM helpers
-ui/storage.js        profile load/save, repeatable cards, resume, export/import
-ui/learned.js        the review step for answers learned from typing
-ui/fill-runner.js    injection into every frame, result aggregation, status
-ui/profiles.js       named profiles (the active one is mirrored into jobProfile)
-ui/tracker.js        the application log: record, warn, status, CSV
-ui/cover-letter.js   templates, placeholders, copy / type into the form
-ui/editor.js         bootstrap: wires whichever controls this page owns
+shared.js               the shared list + keys + the dedupe rule
+ui/core.js              constants, the null-safe DOM helpers, setStatus
+ui/profile-form.js      load/save the profile form, dirty tracking, auto-save
+ui/profile-sections.js  snippet + Work Experience / Education editor rows
+ui/resume.js            the resume file: pick, store, clear
+ui/backup.js            back up everything / restore / Delete all
+ui/learned.js           the review step for answers learned from typing
+ui/fill-aggregate.js    the per-frame completion model
+ui/fill-run.js          injection into every frame + the broad-access grant
+ui/unfilled-list.js     "fields left for you" + click-to-highlight
+ui/run-history.js       the remembered run per tab, duplicate warning
+ui/profiles.js          named profiles (the active one is mirrored into jobProfile)
+ui/applications.js      the application log: record, edit, render, CSV
+ui/job-ask.js           the "which job is this?" question
+ui/cover-letter.js      templates, placeholders, copy / type into the form
+ui/widgets.js           "remember this widget": offers + the saved list
+ui/editor.js            bootstrap: wires whichever controls this page owns
 ```
 
+`ui/profile-form.js`, `ui/profile-sections.js`, `ui/resume.js` and `ui/backup.js`
+were one file (`ui/storage.js`) and share one page scope, so they call each
+other directly. `ui/fill-aggregate.js`, `ui/fill-run.js`, `ui/unfilled-list.js`
+and `ui/run-history.js` were one file (`ui/fill-runner.js`) the same way.
+
 The UI script list is read **from `popup.html`** by the test harness, so a new
-`ui/*.js` file cannot be forgotten there either.
+`ui/*.js` file cannot be forgotten there either. A test also asserts the popup
+and the options page load the **same scripts in the same order**.
 
 `background.js` is the MV3 service worker: the Alt+Shift+F command and the
 toolbar badge. It renders the badge from one place, so a fresh fill result and
