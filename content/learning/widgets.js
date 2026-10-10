@@ -27,6 +27,7 @@
 (() => {
   "use strict";
   const JA = (window.__JobAutofill = window.__JobAutofill || {});
+  const S = JA.widgetShape;   // shape reading lives in widget-shape.js
   const SHARED = window.JOB_AUTOFILL_SHARED || {};
   const KEYS = SHARED.keys || {};
   const PROFILE_KEY = KEYS.profile || "jobProfile";
@@ -53,9 +54,6 @@
   const NEVER_LEARN =
     /(gender|race|ethnicity|veteran|disability|disabled|social security|ssn|passport|national insurance|date of birth|birth date|birthday|password|consent|signature)/;
 
-  // Wording that grows a repeated group.
-  const ADD_WORDS = ["add another", "add more", "add", "new"];
-  const DOC_POSITION_FOLLOWING = 4;
 
   let profile = {};
   let saved = [];              // saved recipes, for "we already know this widget"
@@ -64,21 +62,11 @@
   const regions = new Map();   // container -> { blocks: [], touched: Map(block -> Map(field -> value)) }
   const proposed = new Set();  // fingerprints already written this page load
 
-  const normalize = (text) =>
-    JA.normalize ? JA.normalize(text) : String(text || "").toLowerCase();
-  const keyOf = (text) =>
-    SHARED.keyOf ? SHARED.keyOf(text) : normalize(text);
-  const clean = (text) => String(text || "").replace(/\s+/g, " ").trim();
   const hostOf = () =>
     JA.pageHost
       ? JA.pageHost()
       : String((window.location && window.location.host) || "").toLowerCase();
 
-  const fieldsIn = (el) =>
-    JA.queryAll(
-      'input, select, textarea, [contenteditable="true"], [contenteditable=""]',
-      el
-    );
 
   /**
    * A set of "fields we wrote", however the caller built it. Duck-typed rather
@@ -115,109 +103,6 @@
     return SKIP_INPUT_TYPES.indexOf(type) === -1;
   }
 
-  /**
-   * The label that NAMES a field — never its placeholder or name/id, which are
-   * noisy and unstable. An empty result means the field is unreadable, and a
-   * widget we cannot label is one we refuse to learn.
-   */
-  function labelFor(el) {
-    const text = JA.labelTextFor ? clean(JA.labelTextFor(el)) : "";
-    return text.slice(0, 80);
-  }
-
-  /** Shape signature: tag + class names with digits flattened, order-insensitive. */
-  function shapeOf(el) {
-    const cls = typeof el.className === "string" ? el.className : "";
-    const sig = cls
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((name) => name.replace(/\d+/g, "#"))
-      .sort()
-      .join(".");
-    return el.tagName.toLowerCase() + "|" + sig;
-  }
-
-  /**
-   * The repeated GROUP a field belongs to: walk up until a parent holds >=2
-   * siblings of the same shape that each contain fields — that is one block of
-   * an add-another widget.
-   */
-  function groupFor(el) {
-    let node = el.parentElement;
-    for (let depth = 0; node && depth < 12; depth++) {
-      const parent = node.parentElement;
-      if (parent) {
-        const mine = shapeOf(node);
-        const twins = Array.from(parent.children).filter((c) => shapeOf(c) === mine);
-        if (twins.length >= 2) {
-          const withFields = twins.filter((c) => fieldsIn(c).length > 0);
-          if (withFields.length >= 2 && fieldsIn(node).length >= 2) {
-            return { block: node, container: parent, blocks: withFields };
-          }
-        }
-      }
-      node = parent;
-    }
-    return null;
-  }
-
-  /** The control that grows `container`, if the page has one. */
-  function addControlFor(container) {
-    const scope = (container && container.parentElement) || container;
-    if (!scope) return null;
-    const controls = Array.from(
-      scope.querySelectorAll('button, [role="button"], a, input[type="button"]')
-    );
-    for (const el of controls) {
-      if (el.disabled || el.getAttribute("aria-disabled") === "true") continue;
-      const text = normalize(
-        el.textContent || el.value || el.getAttribute("aria-label") || ""
-      );
-      if (!text) continue;
-      if (text === "+" || text === "add") return el;
-      if (JA.matchesKeywords(text, ADD_WORDS)) return el;
-    }
-    return null;
-  }
-
-  /** The wording of the add control, as replay keywords. */
-  function addWordsOf(el) {
-    const text = normalize(
-      el.textContent || el.value || el.getAttribute("aria-label") || ""
-    );
-    const words = [];
-    for (const word of ADD_WORDS) {
-      if (JA.matchesKeywords(text, [word])) words.push(word);
-    }
-    return words.length ? words : ["add"];
-  }
-
-  /** Nearest heading before `container` — the widget's human name. */
-  function headingFor(container) {
-    const parent = (container && container.parentElement) || document;
-    let best = "";
-    for (const h of Array.from(
-      parent.querySelectorAll('h1,h2,h3,h4,h5,h6,legend,[role="heading"]')
-    )) {
-      const text = clean(h.textContent);
-      if (!text) continue;
-      if (h.compareDocumentPosition(container) & DOC_POSITION_FOLLOWING) best = text;
-    }
-    return best.slice(0, 60);
-  }
-
-  /** Is this widget already handled by a built-in section definition? */
-  function coveredByBuiltIn(block) {
-    const sections = JA.SECTIONS || {};
-    for (const name of Object.keys(sections)) {
-      const anchor = (sections[name] && sections[name].anchor) || [];
-      if (anchor.length === 0) continue;
-      for (const field of fieldsIn(block)) {
-        if (JA.matchesKeywords(normalize(JA.getSignal(field)), anchor)) return true;
-      }
-    }
-    return false;
-  }
 
   /**
    * Bind a field to a profile key ONLY when the value you typed IS that stored
@@ -228,7 +113,7 @@
   function profileKeyFor(label, value, source) {
     if (!value) return "";
     const bank = source && typeof source === "object" ? source : profile;
-    const signal = keyOf(label);
+    const signal = S.keyOf(label);
     if (!signal) return "";
     for (const key of Object.keys(JA.KEYWORDS || {})) {
       if (!JA.matchesKeywords(signal, JA.KEYWORDS[key])) continue;
@@ -242,7 +127,7 @@
 
   /** A stable, sanitizer-safe key for one field (`school`, `referenceName2`). */
   function slugFor(label, used) {
-    let base = keyOf(label).replace(/[^a-z0-9]+/g, "");
+    let base = S.keyOf(label).replace(/[^a-z0-9]+/g, "");
     if (!/^[a-z]/i.test(base)) base = "f" + base;
     base = base.slice(0, 24) || "field";
     let key = base;
@@ -258,7 +143,7 @@
   /** How many of the touched fields hold something. */
   function countFilled(touched) {
     let n = 0;
-    for (const [, value] of touched) if (clean(value)) n++;
+    for (const [, value] of touched) if (S.clean(value)) n++;
     return n;
   }
 
@@ -275,24 +160,24 @@
       if (!model || touched.size > model.touched.size) model = { block, touched };
     }
     if (!model) return null;
-    if (coveredByBuiltIn(model.block)) return null;
+    if (S.coveredByBuiltIn(model.block)) return null;
 
     const canonical = [];
     let unlabelled = 0;
     for (const [el, value] of model.touched) {
-      const text = clean(value);
+      const text = S.clean(value);
       if (!text) continue;
-      const label = labelFor(el);
+      const label = S.labelFor(el);
       if (!label) {
         unlabelled++;
         continue; // unreadable — we cannot key a recipe by it
       }
-      if (NEVER_LEARN.test(normalize(label))) return { skipped: label };
+      if (NEVER_LEARN.test(S.normalize(label))) return { skipped: label };
       // Long free text is an answer for THIS application, not a widget value.
       if (!profileKeyFor(label, text) && text.length > MAX_LITERAL) {
         return { skipped: label };
       }
-      canonical.push({ label, keyword: keyOf(label), text });
+      canonical.push({ label, keyword: S.keyOf(label), text });
     }
     // "Sure it is a widget": one field is a field, two are a widget we can learn.
     if (canonical.length < 2) {
@@ -300,7 +185,7 @@
       // a definition keyed by position or by a React id would rot immediately.
       if (unlabelled > 0 && canonical.length + unlabelled >= 2) {
         return {
-          skipped: headingFor(model.block.parentElement || model.block) ||
+          skipped: S.headingFor(model.block.parentElement || model.block) ||
             "a widget whose fields have no readable labels"
         };
       }
@@ -323,10 +208,10 @@
     for (const [, touched] of region.touched) {
       const row = {};
       for (const [el, value] of touched) {
-        const text = clean(value);
+        const text = S.clean(value);
         if (!text) continue;
-        const label = labelFor(el);
-        const key = byKeyword.get(keyOf(label));
+        const label = S.labelFor(el);
+        const key = byKeyword.get(S.keyOf(label));
         if (!key) continue;
         const profileKey = profileKeyFor(label, text);
         row[key] = profileKey
@@ -349,8 +234,8 @@
     }
 
     const block = model.block;
-    const add = addControlFor(block.parentElement || block);
-    const heading = headingFor(block.parentElement || block);
+    const add = S.addControlFor(block.parentElement || block);
+    const heading = S.headingFor(block.parentElement || block);
 
     return {
       candidate: {
@@ -363,7 +248,7 @@
           .slice(0, 120),
         anchor: [anchor.keyword],
         confirm,
-        addButton: add ? addWordsOf(add) : [],
+        addButton: add ? S.addWordsOf(add) : [],
         // Learned widgets carry literal/profile values, so nothing is ever
         // reformatted into them — the engine only reformats from/to fields.
         dateFormat: "none",
@@ -547,7 +432,7 @@
     const el = event && event.target;
     if (!usableField(el)) return;
     if (mine.has(el)) return; // the fill wrote this, not you
-    const group = groupFor(el);
+    const group = S.groupFor(el);
     if (!group) return;
 
     let region = regions.get(group.container);
@@ -568,11 +453,11 @@
 
   // Exposed so the suites can drive the inference directly.
   JA.widgetLearnInternals = {
-    shapeOf,
-    groupFor,
-    addControlFor,
-    headingFor,
-    labelFor,
+    shapeOf: S.shapeOf,
+    groupFor: S.groupFor,
+    addControlFor: S.addControlFor,
+    headingFor: S.headingFor,
+    labelFor: S.labelFor,
     profileKeyFor,
     buildCandidate,
     entryFor: (row, source) => JA.recipeInternals.entryFor(row, source)
@@ -581,4 +466,3 @@
   // Exposed so a test can await the debounced write instead of guessing.
   JA.widgetLearningPending = () => flushTimer !== null;
 })();
-

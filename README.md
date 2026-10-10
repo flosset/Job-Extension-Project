@@ -232,6 +232,7 @@ content/                 what runs inside the page, in the injected order
     recipe-replay.js     replay a widget definition the user accepted
   learning/              capturing what you type
     answers.js           watches the fields left for you, records candidates
+    widget-shape.js      the shape of a repeated group (pure DOM reading)
     widgets.js           infers a widget definition from watching you fill one
   page/                  page-info.js — what job this page is for
 

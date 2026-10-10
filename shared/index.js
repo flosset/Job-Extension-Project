@@ -98,6 +98,7 @@ var JOB_AUTOFILL_SHARED = {
     "content/sections/repeatable.js",
     "content/sections/recipe-replay.js",
     "content/learning/answers.js",
+    "content/learning/widget-shape.js",
     "content/learning/widgets.js",
     "content/autofill.js"
   ],
