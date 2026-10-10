@@ -1,11 +1,14 @@
-// autofill.js — orchestrator. Injected on demand by popup.js via
-// chrome.scripting.executeScript together with field-map.js, dom-utils.js and
-// combobox.js (in that order); they share the window.__JobAutofill namespace.
+// autofill.js — the orchestrator. Injected LAST (see shared/index.js) with the
+// rest of the content scripts; it runs the moment it is evaluated.
 //
-// Reads the profile from chrome.storage.local, fills matching fields, and
-// reports the outcome back to the popup. Writes values through the native
-// prototype setter and dispatches bubbling input/change/blur so React/Workday
-// portals capture the change instead of ignoring a programmatic assignment.
+// Reads the profile from chrome.storage.local, runs the fill passes in order,
+// and reports the outcome back to the popup. The RULES live next door:
+//   matching/   deciding what a field is and which one answers a key
+//   controls/   reading and writing one control
+//   sections/   repeated groups and replay of a taught widget
+//   learning/   capturing answers and widget candidates from what you type
+//   page/       what job this page is for
+// What is left here is the ORDER of the passes and the result message.
 (() => {
   "use strict";
   const JA = (window.__JobAutofill = window.__JobAutofill || {});
@@ -31,97 +34,6 @@
       window.JOB_AUTOFILL_SHARED.keys.profile) ||
     "jobProfile";
 
-  // --- Matcher ------------------------------------------------------------
-
-  /** All elements matched by a list of CSS attribute selectors. */
-  function attributeMatches(selectorList) {
-    const out = [];
-    for (const selector of selectorList || []) {
-      // JA.queryAll, not document.querySelectorAll: a field inside an open
-      // shadow root is invisible to the latter.
-      for (const el of JA.queryAll(selector)) out.push(el);
-    }
-    return out;
-  }
-
-  /** Pool elements whose label/aria text matches a keyword list. */
-  function keywordMatches(pool, keywords, tagName) {
-    if (!keywords) return [];
-    return pool.filter((el) => {
-      if (tagName && el.tagName !== tagName) return false;
-      return JA.matchesKeywords(JA.normalize(JA.getSignal(el)), keywords);
-    });
-  }
-
-  /**
-   * First candidate that is accepted, unused, fillable and still empty.
-   * Skips non-matching tags, used elements and already-filled fields, so a
-   * filled first match never blocks a later empty one.
-   */
-  function pickElement(candidates, used, accept) {
-    const seen = new Set();
-    for (const el of candidates) {
-      if (seen.has(el)) continue;
-      seen.add(el);
-      if (used.has(el)) continue;
-      if (accept && !accept(el)) continue;
-      if (!JA.isFillable(el)) continue;
-      if (JA.isFilled(el)) continue;
-      return el;
-    }
-    return null;
-  }
-
-  /** Pick the best text field (input/textarea/contenteditable) for a key. */
-  function pickField(key, pool, used) {
-    const candidates = attributeMatches(JA.ATTRIBUTE_SELECTORS[key]).concat(
-      keywordMatches(pool, JA.KEYWORDS[key], null)
-    );
-    return pickElement(candidates, used, (el) => {
-      if (el.tagName === "SELECT" || JA.isComboboxInput(el)) return false;
-      // A phone EXTENSION is not a phone number: it must never receive one.
-      // The literal fallback keeps a fill working even if field-map.js were
-      // somehow absent — a missing helper must never abort the whole run.
-      if (
-        key === "phone" &&
-        JA.matchesKeywords(
-          JA.normalize(JA.getSignal(el)),
-          JA.PHONE_EXTENSION_KEYWORDS || ["extension", "ext", "extn"]
-        )
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }
-
-  /** Pick the best <select> for a self-identification key. */
-  function pickSelect(key, pool, used) {
-    const candidates = attributeMatches(JA.SELECT_SELECTORS[key]).concat(
-      keywordMatches(pool, JA.KEYWORDS[key], "SELECT")
-    );
-    return pickElement(candidates, used, (el) => el.tagName === "SELECT");
-  }
-
-  /** Pick the best <select> for arbitrary keywords (answer-bank entries). */
-  function pickSelectByKeywords(keywords, pool, used) {
-    return pickElement(
-      keywordMatches(pool, keywords, "SELECT"),
-      used,
-      (el) => el.tagName === "SELECT"
-    );
-  }
-
-  /**
-   * Find the <option> whose text/value best matches the stored value.
-   * (Moved to dom-utils as JA.findOptionForValue so repeatable sections share
-   *  it; kept out of here to avoid a duplicate definition.)
-   */
-
-  // --- Native field injection --------------------------------------------
-  // (injectValue / injectIntoEditable / assignValue / findOptionForValue now
-  //  live in dom-utils.js as JA.* so the repeatable-section engine shares them.)
-
   // --- Custom snippets (feature 4) ---------------------------------------
 
   /**
@@ -143,8 +55,8 @@
       const keywords = JA.snippetKeywords(key);
       if (keywords.length === 0) continue;
 
-      const el = pickElement(
-        keywordMatches(pool, keywords, null),
+      const el = JA.matcher.pickElement(
+        JA.matcher.keywordMatches(pool, keywords, null),
         used,
         (node) => node.tagName !== "SELECT" && !JA.isComboboxInput(node)
       );
@@ -162,7 +74,7 @@
       // The same answer-bank entry may be a native <select> on the next
       // portal ("How did you hear about us"). The option matcher is
       // synonym- and polarity-aware, so it only commits on a real match.
-      const select = pickSelectByKeywords(keywords, pool, used);
+      const select = JA.matcher.pickSelectByKeywords(keywords, pool, used);
       if (select) {
         const option = JA.findOptionForValue(select, value);
         if (option) {
@@ -178,7 +90,6 @@
     }
     return count;
   }
-
   // --- Orchestration ------------------------------------------------------
 
   /** Report the outcome back to the popup (may be closed — never throw). */
@@ -224,7 +135,7 @@
       const value = profile[key];
       if (!value || typeof value !== "string") continue;
 
-      const el = pickField(key, pool, used);
+      const el = JA.matcher.pickField(key, pool, used);
       if (!el) continue;
 
       try {
@@ -243,7 +154,7 @@
       const value = profile[key];
       if (!value || typeof value !== "string") continue;
 
-      const select = pickSelect(key, pool, used);
+      const select = JA.matcher.pickSelect(key, pool, used);
       if (!select) continue;
 
       const option = JA.findOptionForValue(select, value);
@@ -279,156 +190,6 @@
 
     return { filled, used };
   }
-
-  /** Best human-readable label for a field (aria → label → placeholder → name). */
-  function describeField(el) {
-    const candidates = [
-      el.getAttribute("aria-label"),
-      JA.labelTextFor ? JA.labelTextFor(el) : "",
-      el.getAttribute("placeholder")
-    ];
-    for (const candidate of candidates) {
-      const text = (candidate || "")
-        .replace(/\s+/g, " ")
-        .replace(/\s*\*+\s*$/, "") // drop a trailing required marker
-        .trim();
-      if (text) return text.slice(0, 60);
-    }
-    const fallback = el.getAttribute("name") || el.id || "";
-    const cleaned = fallback.replace(/[_\-]+/g, " ").trim();
-    return cleaned ? cleaned.slice(0, 60) : null;
-  }
-
-  /** Where to flash for a control: a hidden radio/checkbox lives in a label. */
-  function flashTargetFor(el) {
-    if (!el || !el.closest) return el;
-    if (el.type === "radio" || el.type === "checkbox") {
-      return el.closest("label") || el;
-    }
-    return el;
-  }
-
-  /** The question text for a radio group (legend first, then the full signal). */
-  function describeRadioGroup(group) {
-    const first = group[0];
-    const fieldset = first.closest ? first.closest("fieldset") : null;
-    const legend = fieldset ? fieldset.querySelector("legend") : null;
-    const own = legend ? legend.textContent : "";
-    const raw = own || (JA.radioGroupSignal ? JA.radioGroupSignal(group) : "");
-    const text = (raw || "")
-      .replace(/\s+/g, " ")
-      .replace(/\s*\*+\s*$/, "")
-      .trim();
-    return text ? text.slice(0, 60) : describeField(first);
-  }
-
-  /** Is a control actually exposed to the user (or styled away)? */
-  function groupVisible(group) {
-    return group.some(
-      (r) => JA.isVisible(r) || (r.closest && JA.isVisible(r.closest("label")))
-    );
-  }
-
-  /** Is a radio group marked required? The marker sits on the QUESTION. */
-  function groupRequired(group) {
-    const first = group[0];
-    if (JA.isRequiredField(first)) return true;
-    const container =
-      first.closest &&
-      (first.closest("fieldset") ||
-        first.closest('[role="radiogroup"], [role="group"]'));
-    if (!container) return false;
-    if (container.getAttribute("aria-required") === "true") return true;
-    const legend = container.querySelector("legend");
-    const text =
-      (legend ? legend.textContent : "") +
-      " " +
-      (container.getAttribute("aria-label") || "");
-    return /\*/.test(text);
-  }
-
-  /**
-   * The fields we could NOT fill, so the popup can tell the user exactly what
-   * is left to do by hand. Each entry carries a handle so the popup can ask us
-   * to scroll to and flash it, plus whether the form marks it required.
-   *
-   * Radio groups count as ONE question (never one entry per button), and
-   * standalone checkboxes are included — "which of these?" and "I agree" are
-   * questions too.
-   */
-  function collectUnfilled(used) {
-    const pool = JA.fieldPool();
-
-    const out = [];
-    const seen = new Set();
-
-    const push = (label, required, el) => {
-      if (!label || seen.has(label)) return false;
-      seen.add(label);
-      const target = flashTargetFor(el);
-      out.push({
-        label,
-        required: !!required,
-        ref: JA.refFor ? JA.refFor(target) : null
-      });
-      return out.length >= 40;
-    };
-
-    // Text / select / contenteditable controls we could not fill.
-    for (const el of pool.filter(JA.isFillable)) {
-      if (out.length >= 40) break;
-      if (used.has(el)) continue;
-      if (JA.isComboboxInput && JA.isComboboxInput(el)) continue; // no false noise
-      if (JA.isFilled(el)) continue;
-      if (push(describeField(el), JA.isRequiredField(el), el)) break;
-    }
-
-    // Radio groups: one entry per QUESTION, never one per button.
-    if (JA.radioGroups && out.length < 40) {
-      for (const group of JA.radioGroups()) {
-        if (out.length >= 40) break;
-        if (group.some((r) => used.has(r) || r.checked)) continue;
-        if (!groupVisible(group)) continue;
-        if (push(describeRadioGroup(group), groupRequired(group), group[0])) {
-          break;
-        }
-      }
-    }
-
-    // Standalone checkboxes (consent boxes, "currently work here", …).
-    if (out.length < 40) {
-      for (const el of pool) {
-        if (out.length >= 40) break;
-        if (el.type !== "checkbox") continue;
-        if (used.has(el) || el.checked) continue;
-        if (JA.isComboboxInput && JA.isComboboxInput(el)) continue;
-        if (!groupVisible([el])) continue;
-        if (push(describeField(el), JA.isRequiredField(el), el)) break;
-      }
-    }
-
-    return out;
-  }
-
-  /** Count the form fields present in this frame (diagnostic). */
-  function scanCount() {
-    return JA.queryAll("input, select, textarea").length;
-  }
-
-  /**
-   * Count iframes in THIS frame (only meaningful in the top frame). Reported so
-   * the popup can tell the difference between "nothing matched" and "part of
-   * this page is in a frame we were not allowed to reach".
-   */
-  function iframeCount() {
-    try {
-      if (window.top !== window) return 0;
-      return document.querySelectorAll("iframe").length;
-    } catch (err) {
-      return 0; // cross-origin window access — this frame is not the top one
-    }
-  }
-
   /**
    * Watch the DOM for up to `timeoutMs` for late-hydrated fields (React SPAs
    * such as Greenhouse/Workday often render the form after script injection)
@@ -478,7 +239,6 @@
       timer = setTimeout(() => settle(fillEverything(profile, used)), timeoutMs);
     });
   }
-
   async function run() {
     let profile;
     try {
@@ -583,10 +343,10 @@
 
     // Collected before `revealed` is appended: a revealed dropdown's label is
     // the option list, not a question, so it must never become a learned answer.
-    const missing = collectUnfilled(used);
+    const missing = JA.report.collectUnfilled(used);
     const unfilled = missing.concat(revealed).slice(0, 40);
-    const scanned = scanCount();
-    const iframes = iframeCount();
+    const scanned = JA.report.scanCount();
+    const iframes = JA.report.iframeCount();
     console.log(
       "[JobAutofill] frame:", location.href,
       "| form fields:", scanned,
@@ -647,7 +407,6 @@
       }
     }
   }
-
   // Always report the outcome and release the re-entrancy guard, even if a
   // portal's DOM throws somewhere unexpected.
   /**

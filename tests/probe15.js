@@ -5,9 +5,8 @@ const path = require("path");
 const { JSDOM } = require("jsdom");
 
 const APP_DIR = path.resolve(__dirname, "..");
-const SRC = ["content/field-map.js", "content/dom-utils.js", "content/files.js"]
-  .map((f) => fs.readFileSync(path.join(APP_DIR, f), "utf8"))
-  .join("\n");
+// The whole injected pipeline, in the shipped order (see _popup-source.js).
+const SRC = require("./_popup-source").CONTENT_SRC;
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
   runScripts: "dangerously",

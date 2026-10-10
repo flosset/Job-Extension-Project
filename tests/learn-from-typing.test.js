@@ -118,7 +118,7 @@ const find = (list, needle) =>
 
   t(
     "A: learn.js is in the real injected list",
-    CONTENT_SCRIPTS.indexOf("content/learn.js") >= 0
+    CONTENT_SCRIPTS.indexOf("content/learning/answers.js") >= 0
   );
   t("A: armLearning is exposed to the page", typeof A.JA.armLearning === "function");
 

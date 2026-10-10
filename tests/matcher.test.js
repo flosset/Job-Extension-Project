@@ -11,19 +11,10 @@ const path = require("path");
 const { JSDOM, VirtualConsole } = require("jsdom");
 
 const APP = path.resolve(__dirname, "..");
-const SOURCE = [
-  "content/field-map.js",
-  "content/dom-utils.js",
-  "content/combobox.js",
-  "content/fill.js",
-  "content/dates.js",
-  "content/repeatable.js",
-  "content/radios.js",
-  "content/files.js",
-  "content/autofill.js"
-]
-  .map((f) => fs.readFileSync(path.join(APP, f), "utf8"))
-  .join("\n");
+// The whole injected pipeline (every content script, in the shipped order) —
+// nothing here may test a hand-picked subset that a reorganization could leave
+// pointing at files the extension no longer has.
+const SOURCE = require("./_popup-source").CONTENT_SRC;
 
 const vc = new VirtualConsole();
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {

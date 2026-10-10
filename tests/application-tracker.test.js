@@ -14,11 +14,16 @@ const { APP_DIR, POPUP_JS, SHARED, SHARED_SCRIPTS } = require("./_popup-source")
 
 const APPS_KEY = SHARED.keys.applications;
 
-// page-info.js only needs the data table and the DOM helpers.
+// page-info.js only needs the data table, the signal reader and the DOM helpers.
 const INFO_SRC = SHARED_SCRIPTS.concat([
-  "content/field-map.js",
-  "content/dom-utils.js",
-  "content/page-info.js"
+  "content/matching/field-map.js",
+  "content/matching/field-signals.js",
+  "content/matching/field-matcher.js",
+  "content/controls/shadow-dom.js",
+  "content/controls/dom-state.js",
+  "content/controls/dom-events.js",
+  "content/controls/locate.js",
+  "content/page/page-info.js"
 ])
   .map((file) => fs.readFileSync(path.join(APP_DIR, file), "utf8"))
   .join("\n");

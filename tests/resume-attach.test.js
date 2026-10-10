@@ -1,16 +1,15 @@
 // End-to-end test for the resume AUTO-ATTACH path (feature 3 upgrade).
 // jsdom has no DataTransfer, so we install a minimal polyfill and give each
 // resume input a writable `files` property — this exercises the real
-// JA.attachResumeFile() code in content/files.js.
+// JA.attachResumeFile() code in content/controls/files.js.
 "use strict";
 const fs = require("fs");
 const path = require("path");
 const { JSDOM } = require("jsdom");
 
 const APP = path.resolve(__dirname, "..");
-const SRC = ["content/field-map.js", "content/dom-utils.js", "content/files.js"]
-  .map((f) => fs.readFileSync(path.join(APP, f), "utf8"))
-  .join("\n");
+// The whole injected pipeline, in the shipped order (see _popup-source.js).
+const SRC = require("./_popup-source").CONTENT_SRC;
 
 const html = `<!doctype html><html><body>
   <label for="resume_file">Resume / CV upload</label>

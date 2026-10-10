@@ -145,7 +145,7 @@ const slugForKeyword = (recipe, keyword) =>
   // ---- A. the engine is in the real injected list, and exposed ------------
   t(
     "A: widget-learn.js is in the injected list",
-    CONTENT_SCRIPTS.indexOf("content/widget-learn.js") >= 0
+    CONTENT_SCRIPTS.indexOf("content/learning/widgets.js") >= 0
   );
 
   const B = await pageWith({ firstName: "Jane" });

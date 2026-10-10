@@ -2,8 +2,8 @@
 const fs = require("fs"); const path = require("path");
 const { JSDOM } = require("jsdom");
 const APP = path.resolve(__dirname, "..");
-const SRC = ["content/field-map.js","content/dom-utils.js","content/combobox.js","content/radios.js","content/files.js","content/autofill.js"]
-  .map(f => fs.readFileSync(path.join(APP, f), "utf8")).join("\n");
+// The whole injected pipeline, in the shipped order (see _popup-source.js).
+const SRC = require("./_popup-source").CONTENT_SRC;
 const html = `<!doctype html><html><body>
   <label for="resume_file">Resume / CV upload</label>
   <input type="file" id="resume_file" name="resume_upload" />

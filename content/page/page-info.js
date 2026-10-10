@@ -332,4 +332,13 @@
       confident: !!posting
     };
   };
+
+
+  /**
+   * The current page's host, lowercased. Used to scope a learned widget to the
+   * site it was taught on, by both the learning and the replay side.
+   */
+  JA.pageHost = function () {
+    return String((window.location && window.location.host) || "").toLowerCase();
+  };
 })();

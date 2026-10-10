@@ -1,4 +1,4 @@
-// widget-learn.js — learn a WIDGET DEFINITION from watching you fill one.
+// widgets.js — learn a WIDGET DEFINITION from watching you fill one.
 //
 // A portal can hold a repeated group we have no SECTIONS entry for: a
 // "References" block, an "Emergency contact" pair, a bespoke education widget.
@@ -12,10 +12,8 @@
 //   values    = slug -> where the value comes from on replay
 //   addButton = wording of the add control, so growth stays the engine's job
 //
-// The definition deliberately mirrors JA.SECTIONS, so replay is the SAME,
-// already-guarded section engine (fillSectionBlocks): it refuses to grow or
-// mutate anything it cannot verify, which is why a rotten definition is inert
-// rather than a click storm.
+// Replaying that definition is NOT here — it is sections/recipe-replay.js, so
+// capture and replay can be read (and reasoned about) separately.
 //
 // Nothing is learned unless ALL of these hold — "sure it is a widget":
 //   1. the region is a REPEATED group (>=2 sibling blocks of one shape),
@@ -72,7 +70,9 @@
     SHARED.keyOf ? SHARED.keyOf(text) : normalize(text);
   const clean = (text) => String(text || "").replace(/\s+/g, " ").trim();
   const hostOf = () =>
-    String((window.location && window.location.host) || "").toLowerCase();
+    JA.pageHost
+      ? JA.pageHost()
+      : String((window.location && window.location.host) || "").toLowerCase();
 
   const fieldsIn = (el) =>
     JA.queryAll(
@@ -566,111 +566,6 @@
     scheduleFlush();
   }
 
-  /** Build the entry the engine should write, from one row's value sources. */
-  function entryFor(row, source) {
-    const entry = {};
-    const cells = row && typeof row === "object" ? row : {};
-    for (const key of Object.keys(cells)) {
-      const src = cells[key] || {};
-      if (src.source === "profile") {
-        const value = source[src.key];
-        if (typeof value === "string" && value.trim()) entry[key] = value;
-      } else if (typeof src.value === "string" && src.value) {
-        entry[key] = src.value;
-      }
-    }
-    return entry;
-  }
-
-  /** A stable identity for a recipe: its host plus its anchor. */
-  function recipeKey(recipe) {
-    const anchor = (recipe.anchor || [])[0] || "";
-    return recipe.host + "|" + anchor;
-  }
-
-  /** Record that these recipes actually filled something, for the profile UI. */
-  async function bumpUsage(keys) {
-    try {
-      const data = await chrome.storage.local.get(RECIPES_KEY);
-      const state = SHARED.sanitizeRecipes
-        ? SHARED.sanitizeRecipes(data[RECIPES_KEY])
-        : { items: [] };
-      let changed = false;
-      for (const recipe of state.items) {
-        if (keys.indexOf(recipeKey(recipe)) === -1) continue;
-        recipe.uses = (recipe.uses || 0) + 1;
-        recipe.lastUsedAt = Date.now();
-        changed = true;
-      }
-      if (changed) await chrome.storage.local.set({ [RECIPES_KEY]: state });
-    } catch (err) {
-      /* usage stats are a nicety, never a requirement */
-    }
-  }
-
-  /**
-   * Apply every remembered widget that matches this page.
-   *
-   * A recipe is consulted ONLY for its own host, and only when its anchors
-   * really match a block here — so a stale definition does nothing at all
-   * rather than clicking at random. Returns { filled, applied }.
-   */
-  JA.fillLearnedWidgets = async function (sourceProfile, used) {
-    const source =
-      sourceProfile && typeof sourceProfile === "object" ? sourceProfile : {};
-    if (!JA.fillSectionBlocks) return { filled: 0, applied: [] };
-
-    let recipes = [];
-    try {
-      const data = await chrome.storage.local.get(RECIPES_KEY);
-      recipes = SHARED.sanitizeRecipes
-        ? SHARED.sanitizeRecipes(data[RECIPES_KEY]).items
-        : [];
-    } catch (err) {
-      return { filled: 0, applied: [] };
-    }
-    if (recipes.length === 0) return { filled: 0, applied: [] };
-
-    const host = hostOf();
-    let filled = 0;
-    const applied = [];
-
-    for (const recipe of recipes) {
-      if (recipe.host !== host) continue;
-      const section = {
-        anchor: recipe.anchor,
-        confirm: recipe.confirm,
-        fields: recipe.fields,
-        addButton: recipe.addButton,
-        dateFormat: recipe.dateFormat
-      };
-      // Not on this page (or no longer matching): do nothing, say nothing.
-      if (JA.sectionBlocks(section).length === 0) continue;
-
-      const entries = [];
-      for (const row of recipe.rows || []) {
-        const entry = entryFor(row, source);
-        if (Object.keys(entry).length > 0) entries.push(entry);
-      }
-      if (entries.length === 0) continue;
-
-      try {
-        const part = await JA.fillSectionBlocks(section, entries, used);
-        if (part && part.filled > 0) {
-          filled += part.filled;
-          // Keyed by host+anchor rather than id: a recipe read back from
-          // storage is re-assigned an id, so an id would never match twice.
-          applied.push(recipeKey(recipe));
-        }
-      } catch (err) {
-        /* one stubborn widget must not abort the rest */
-      }
-    }
-
-    if (applied.length) bumpUsage(applied);
-    return { filled, applied };
-  };
-
   // Exposed so the suites can drive the inference directly.
   JA.widgetLearnInternals = {
     shapeOf,
@@ -680,12 +575,10 @@
     labelFor,
     profileKeyFor,
     buildCandidate,
-    entryFor
+    entryFor: (row, source) => JA.recipeInternals.entryFor(row, source)
   };
 
   // Exposed so a test can await the debounced write instead of guessing.
   JA.widgetLearningPending = () => flushTimer !== null;
 })();
-
-
 
