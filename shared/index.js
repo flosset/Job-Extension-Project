@@ -109,7 +109,7 @@ var JOB_AUTOFILL_SHARED = {
 
   /**
    * Normalize free text to lowercase, space-separated words — the comparison
-   * key for a question. Mirrors JA.normalize in content/dom-utils.js, which is
+   * key for a question. Mirrors JA.normalize in content/matching/field-signals.js, which is
    * what the FILLING matcher uses; a test asserts the two agree so a bank key
    * can never be considered "the same question" by one side and not the other.
    */

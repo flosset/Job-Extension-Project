@@ -3,7 +3,7 @@
 
 "use strict";
 
-// The two storage keys, and the injected script list, come from shared.js —
+// The two storage keys, and the injected script list, come from the injected list in shared/index.js —
 // it is loaded before this file by both pages, imported by the service worker
 // and injected into the page as the first content script, so the popup, the
 // shortcut handler and the fill itself can never disagree about them.

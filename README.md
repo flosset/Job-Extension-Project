@@ -195,59 +195,67 @@ These are the things the extension deliberately refuses to do:
 
 ## Architecture
 
-Plain ES2020+ scripts, no build step. The injected files share one namespace
-(`window.__JobAutofill`) and must load in this order:
+Plain ES2020+ scripts, no build step. Three groups of files, each in its own
+folder so the tree itself says what lives where:
 
 ```
-shared.js              the ONE list of injected files + storage keys (also
-                       imported by the service worker, loaded by both pages)
-content/field-map.js   pure data: selector/keyword/synonym tables
-content/dom-utils.js   text + DOM helpers, the polarity-safe matcher
-content/combobox.js    react-select driver (open → read → commit → close)
-content/fill.js        generic per-field dispatch (any widget, any scope)
-content/dates.js       month/year select pairs
-content/repeatable.js  Work Experience / Education sections
-content/widget-learn.js  learns a widget definition from watching you fill one
-content/radios.js      Yes/No radio groups
-content/files.js       resume auto-attach
-content/phone.js       split country-code + number pairs
-content/page-info.js   what job this page is for (company + role)
-content/learn.js       watches the fields left for you, records candidates
-content/autofill.js    orchestrator: reads the profile, fills, reports
+shared/                  genuinely cross-context: keys, caps, validation, rules
+  index.js               storage keys, caps, the injected-file list, text rules
+  phone.js               splitting a stored number into country + national parts
+  learned.js             coercion for the "answers you typed" candidates
+  applications.js        posting identity, match strength, the ONE logApplication
+  widgets.js             coercion for remembered-widget definitions
+  profiles.js            coercion for the named profiles (incl. the v1 adoption)
+
+content/                 what runs inside the page, in the injected order
+  autofill.js            ORCHESTRATOR ONLY: the pass order and the result message
+  matching/              deciding WHAT a field is
+    field-map.js         pure data: selector/keyword/synonym tables
+    field-signals.js     label/aria/placeholder text and keyword matching
+    option-match.js      synonym- and polarity-aware option/value matching
+    field-matcher.js     choosing WHICH field answers a key
+    unfilled-report.js   what is left for the user, and the page diagnostics
+  controls/              reading and writing ONE control
+    shadow-dom.js        traversal across open shadow roots (queryAll/fieldPool)
+    dom-state.js         fillable / empty / filled / visible / required
+    dom-events.js        the events framework-driven portals listen for
+    dom-inject.js        native-setter writes, real typing, select/checkbox
+    locate.js            tagging a field so the popup can point back at it
+    field-fill.js        fill the first field matching a keyword list
+    combobox.js          react-select driver (open → read → commit → close)
+    dates.js             month/year pairs + date value formatting
+    radios.js            Yes/No radio groups
+    phone.js             split country-code + number pairs
+    files.js             resume auto-attach
+  sections/              repeated groups and taught-widget replay
+    repeatable.js        Work Experience / Education sections
+    recipe-replay.js     replay a widget definition the user accepted
+  learning/              capturing what you type
+    answers.js           watches the fields left for you, records candidates
+    widgets.js           infers a widget definition from watching you fill one
+  page/                  page-info.js — what job this page is for
+
+ui/                      the popup and options screens, in the load order
+  core.js                constants, the null-safe DOM helpers, setStatus
+  profile/               form.js, sections.js, resume.js, backup.js,
+                         profiles.js, actions.js
+  fill/                  aggregate.js, run.js, unfilled.js, history.js
+  tracker/               applications.js, job-ask.js
+  cover-letter/          letter.js, templates.js
+  learning/              learned.js, widgets.js
+  app.js                 bootstrap: wires whichever controls this page owns
 ```
 
-`popup.html` and `options.html` are the two screens; both load the same UI
-scripts, in this order (top-level bindings in classic scripts are visible to
-later ones, so order matters):
+`popup.html` and `options.html` load the same scripts in the same order
+(top-level bindings in classic scripts are visible to later ones, so order
+matters): `shared/*` first, then `ui/`, with `ui/app.js` last because it wires
+the controls once everything it wires is defined.
 
-```
-shared.js               the shared list + keys + the dedupe rule
-ui/core.js              constants, the null-safe DOM helpers, setStatus
-ui/profile-form.js      load/save the profile form, dirty tracking, auto-save
-ui/profile-sections.js  snippet + Work Experience / Education editor rows
-ui/resume.js            the resume file: pick, store, clear
-ui/backup.js            back up everything / restore / Delete all
-ui/learned.js           the review step for answers learned from typing
-ui/fill-aggregate.js    the per-frame completion model
-ui/fill-run.js          injection into every frame + the broad-access grant
-ui/unfilled-list.js     "fields left for you" + click-to-highlight
-ui/run-history.js       the remembered run per tab, duplicate warning
-ui/profiles.js          named profiles (the active one is mirrored into jobProfile)
-ui/applications.js      the application log: record, edit, render, CSV
-ui/job-ask.js           the "which job is this?" question
-ui/cover-letter.js      templates, placeholders, copy / type into the form
-ui/widgets.js           "remember this widget": offers + the saved list
-ui/editor.js            bootstrap: wires whichever controls this page owns
-```
-
-`ui/profile-form.js`, `ui/profile-sections.js`, `ui/resume.js` and `ui/backup.js`
-were one file (`ui/storage.js`) and share one page scope, so they call each
-other directly. `ui/fill-aggregate.js`, `ui/fill-run.js`, `ui/unfilled-list.js`
-and `ui/run-history.js` were one file (`ui/fill-runner.js`) the same way.
-
-The UI script list is read **from `popup.html`** by the test harness, so a new
-`ui/*.js` file cannot be forgotten there either. A test also asserts the popup
-and the options page load the **same scripts in the same order**.
+The injected list lives in `shared/index.js` as
+`JOB_AUTOFILL_SHARED.contentScripts`. Because injected files cannot `import`,
+that one list is what the worker's `importScripts`, both pages, and the test
+harness all read — and tests assert the worker, the pages and the list agree, so
+they cannot drift.
 
 `background.js` is the MV3 service worker: the Alt+Shift+F command and the
 toolbar badge. It renders the badge from one place, so a fresh fill result and
@@ -256,15 +264,11 @@ the "N answers to review" count can never fight over it.
 Every element lookup is null-safe, so a page only needs the controls it uses —
 the compact popup and the full editor share all of this code.
 
-Injected files cannot `import`, so `shared.js` holds the list as
-`JOB_AUTOFILL_SHARED.contentScripts` — the popup and the worker both read it from
-there, and a test asserts the two can never disagree.
-
 ### Adding label synonyms
 
 Most support for a new portal is **data, not code**: add the wording the site
-uses to `JA.KEYWORDS` or a section's `fields` in `content/field-map.js`. Matching
-is label-driven, so no per-domain adapters are needed.
+uses to `JA.KEYWORDS` or a section's `fields` in `content/matching/field-map.js`.
+Matching is label-driven, so no per-domain adapters are needed.
 
 ### Teaching it a widget instead
 
@@ -375,9 +379,11 @@ The runner discovers every `*.test.js` in `tests/`; helper files
 (`_popup-source.js`, `run-all.js`, `bench.js`, `probe*.js`, `proof-*.js`) are
 not suites and are ignored.
 
-Every suite loads its content scripts from the **real** list in `shared.js` (via
-`tests/_popup-source.js`), so adding a content script can never leave a suite
-quietly testing a stale subset.
+Every suite loads its content scripts from the **real** list in
+`shared/index.js` (via `tests/_popup-source.js`), so adding a content script can
+never leave a suite quietly testing a stale subset. The harness also checks, in
+both directions, that the `shared/` files on disk are exactly the ones the
+injected list names.
 
 `test-*.html` are manual fixtures for loading in a browser; they are not part of
 the published package.

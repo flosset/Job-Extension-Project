@@ -8,7 +8,7 @@
 
 "use strict";
 
-/** The pending candidates, as sanitized by shared.js. */
+/** The pending candidates, as sanitized by shared/. */
 let learnedState = { candidates: [], skipped: [] };
 
 /** Read the candidates the content script left behind. */

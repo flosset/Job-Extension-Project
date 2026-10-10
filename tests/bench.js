@@ -1,6 +1,6 @@
 // bench.js — how long does ONE fill pass take, and how much DOM work does it do?
 //
-// Not a correctness suite. It loads the REAL content scripts (from shared.js)
+// Not a correctness suite. It loads the REAL content scripts (from the injected list in shared/index.js)
 // against a synthetic form and reports:
 //   * wall time to complete the run (window.__jobAutofillRun)
 //   * how many document.querySelectorAll() calls the pass made

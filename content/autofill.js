@@ -26,8 +26,8 @@
   }
   window.__jobAutofillActive = true;
 
-  // The profile key comes from shared.js (injected as the first content script)
-  // with a literal fallback, so a missing shared.js can never break a fill.
+  // The profile key comes from the injected list in shared/index.js (injected as the first content script)
+  // with a literal fallback, so a missing shared/ can never break a fill.
   const STORAGE_KEY =
     (window.JOB_AUTOFILL_SHARED &&
       window.JOB_AUTOFILL_SHARED.keys &&

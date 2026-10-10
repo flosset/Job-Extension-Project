@@ -4,7 +4,7 @@
 // Identity is "same company AND same role" (legal-form insensitive), or the
 // same posting URL. A different role at the same company is a different
 // application and is deliberately not treated as a duplicate. The matching
-// rule itself lives in shared.js; this file is the UI side of it — load,
+// rule itself lives in shared/; this file is the UI side of it — load,
 // record, edit, render and CSV-export the log.
 
 "use strict";
@@ -39,14 +39,14 @@ async function writeApplications() {
 
 /**
  * A job we have applied to before, or null: { entry, level }. The rule lives in
- * shared.js so the popup and the keyboard shortcut agree.
+ * shared/ so the popup and the keyboard shortcut agree.
  */
 function previousApplication(page) {
   return JOB_AUTOFILL_SHARED.findPreviousApplication(page, applicationState.items);
 }
 
 /**
- * Log this application. The merge/create rule lives in shared.js so the popup
+ * Log this application. The merge/create rule lives in shared/ so the popup
  * and the keyboard shortcut cannot drift; here we only keep the in-memory copy
  * the list renders in sync.
  */

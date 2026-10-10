@@ -15,7 +15,7 @@
 // that spends seconds working (waitForFields, dropdown waits) can therefore no
 // longer have its result silently dropped. A hard deadline covers frames that
 // never report, and that shortfall is reported to the user rather than hidden.
-// The whole run's deadline lives in shared.js so the popup and the service
+// The whole run's deadline lives in shared/ so the popup and the service
 // worker cannot disagree about how long a fill may take.
 const RUN_DEADLINE_MS = JOB_AUTOFILL_SHARED.runDeadlineMs;
 const FRAME_GRACE_MS = 250;    // settle time once every expected frame replied
