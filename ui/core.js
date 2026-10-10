@@ -60,3 +60,12 @@ const PROFILE_FIELDS = [
 ];
 
 const $ = (id) => document.getElementById(id);
+
+/** Small helper to write the status line with a style class. */
+function setStatus(text, kind) {
+  const el = $("status");
+  if (!el) return;
+  el.textContent = text;
+  el.className = kind || "";
+}
+

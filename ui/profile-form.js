@@ -186,12 +186,6 @@ async function saveProfile() {
   }
 }
 
-/**
- * Aggregate results from EVERY frame the script runs in. With allFrames the
- * script executes in the top frame and in each embedded ATS iframe, and each
- * one reports independently — so we sum their "filled" counts instead of
- * letting the last message overwrite the status line.
- */
 /** One-line "what's saved" summary, used by the compact popup. */
 function renderProfileSummary(profile) {
   const el = $("profileSummary");
