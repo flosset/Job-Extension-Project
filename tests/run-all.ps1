@@ -20,15 +20,22 @@ if (-not (Test-Path (Join-Path $root 'node_modules\jsdom'))) {
   exit 1
 }
 
+# The suites are grouped by area, so discovery walks the folders. Helper files
+# never end in .test.js and are ignored.
 $targets = @()
-$targets += Get-ChildItem -Path $root -Filter '*.test.js' | Sort-Object Name | ForEach-Object { $_.FullName }
+$targets += Get-ChildItem -Path $root -Recurse -Filter '*.test.js' |
+  Where-Object { $_.FullName -notmatch 'node_modules|\.last-run' } |
+  Sort-Object FullName | ForEach-Object { $_.FullName }
 if ($targets.Count -eq 0) { Write-Output 'no test files found'; exit 1 }
 
 $sw = [Diagnostics.Stopwatch]::StartNew()
 
 $jobs = @()
 foreach ($file in $targets) {
-  $name = [IO.Path]::GetFileNameWithoutExtension($file)
+  # Keep the area folder as a prefix (fill__fill-basic) so the capture names stay
+  # unique and readable now that the suites live in subfolders.
+  $rel = $file.Substring($root.Length + 1)
+  $name = (($rel -replace '[\\/]', '__') -replace '\.js$', '')
   $out = Join-Path $outDir ($name + '.out.txt')
   $err = Join-Path $outDir ($name + '.err.txt')
   $proc = Start-Process -FilePath 'node' -ArgumentList ('"' + $file + '"') -NoNewWindow -PassThru `

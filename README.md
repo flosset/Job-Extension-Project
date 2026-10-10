@@ -345,40 +345,72 @@ Backup sections explicitly present but empty are cleared on restore; absent
 sections in older/profile-only files remain untouched. CSV cells that could be
 spreadsheet formulas are prefixed with an apostrophe.
 
-**Or a single suite** (each file is `<area>.test.js`):
+The suites are grouped by area, mirroring the source tree:
+
+```
+tests/
+  _popup-source.js       the ONE loader: script lists + APP_DIR
+  run-all.js             parallel runner (discovers *.test.js at any depth)
+  run-all.ps1            the same, for Windows PowerShell
+  fill/                  the run end to end      (7)  fill-basic, run-completion,
+                         unfilled-review, unfilled-survives, answer-bank-unfilled,
+                         optional-host-access, shortcut-badge
+  matching/              what a field is         (7)  matcher, negation-safe-matching,
+                         answer-bank-scope, address-dropdowns, reactive-dropdowns,
+                         profile-fields-dates, shadow-dom
+  controls/              one control at a time   (6)  combobox-enter-commit,
+                         combobox-multiselect-close, split-phone, file-attach-safety,
+                         resume-attach, radios-files-snippets
+  sections/              repeated groups         (4)  work-experience-sections,
+                         education-sections, repeatable-safety, greenhouse-education
+  learning/              capture + replay        (2)  learn-from-typing, remember-widget
+  ui/                    the two screens         (6)  split-ui, data-ownership,
+                         editor-privacy, named-profiles, cover-letter, application-tracker
+  tools/                 dev tools, NOT suites        bench.js, probe*.js,
+                         proof-feature3.js, bench400.txt
+```
+
+**Or a single suite** (a file is `<area>/<what-it-covers>.test.js`):
 
 ```
 cd tests
-node fill-basic.test.js              # main fill pass
-node answer-bank-unfilled.test.js    # answer bank + unfilled report
-node work-experience-sections.test.js # Work Experience sections
-node education-sections.test.js      # Education sections
-node negation-safe-matching.test.js  # negation-safe answer matching
-node run-completion.test.js          # run-completion model
-node file-attach-safety.test.js      # resume attach safety
-node repeatable-safety.test.js       # destructive-trim gating + dialog scoping
-node data-ownership.test.js          # export / import / delete-all
-node split-ui.test.js                # popup vs options split
-node unfilled-review.test.js         # "fields left for you"
-node answer-bank-scope.test.js       # answer-bank scope, loose selectors, full name
-node optional-host-access.test.js    # optional broad host access
-node learn-from-typing.test.js       # learn-from-typing + the four dedupe rules
-node shortcut-badge.test.js          # Alt+Shift+F, the badge, cross-context drift guards
-node unfilled-survives.test.js       # "fields left for you" survives the popup closing
-node application-tracker.test.js     # the application tracker: page info, logging, duplicate warning
-node named-profiles.test.js          # multiple profiles (and the v1 migration)
-node cover-letter.test.js            # cover-letter templates and placeholders
-node split-phone.test.js             # split phone fields (country code + number)
-node shadow-dom.test.js              # open Shadow DOM traversal
-node greenhouse-education.test.js    # Greenhouse's react-select Education block (reuse, not clones)
-node remember-widget.test.js         # "remember this widget" learn/refuse rules
-node editor-privacy.test.js          # editor data ownership + privacy wipe barrier
-node matcher.test.js                 # field-matcher option table
+node fill/fill-basic.test.js                  # main fill pass
+node fill/run-completion.test.js              # run-completion model
+node fill/unfilled-review.test.js             # "fields left for you"
+node fill/unfilled-survives.test.js           # ...survives the popup closing
+node fill/answer-bank-unfilled.test.js        # answer bank + unfilled report
+node fill/optional-host-access.test.js        # optional broad host access
+node fill/shortcut-badge.test.js              # Alt+Shift+F, the badge, drift guards
+node matching/matcher.test.js                 # field-matcher option table
+node matching/negation-safe-matching.test.js  # negation-safe answer matching
+node matching/answer-bank-scope.test.js       # answer-bank scope, loose selectors
+node matching/address-dropdowns.test.js       # country / state / location widgets
+node matching/reactive-dropdowns.test.js      # react-select from the answer bank
+node matching/profile-fields-dates.test.js    # standard fields + date handling
+node matching/shadow-dom.test.js              # open Shadow DOM traversal
+node controls/combobox-enter-commit.test.js   # a widget that only commits on Enter
+node controls/combobox-multiselect-close.test.js # a menu that only closes on toggle
+node controls/split-phone.test.js             # country code + number pair
+node controls/file-attach-safety.test.js      # resume attach safety
+node controls/resume-attach.test.js           # resume auto-attach
+node controls/radios-files-snippets.test.js   # radios, drop zones, snippets
+node sections/work-experience-sections.test.js # Work Experience sections
+node sections/education-sections.test.js      # Education sections
+node sections/repeatable-safety.test.js       # destructive-trim gating + dialogs
+node sections/greenhouse-education.test.js    # Greenhouse's react-select Education block
+node learning/learn-from-typing.test.js       # learn-from-typing + dedupe rules
+node learning/remember-widget.test.js         # "remember this widget" learn/refuse
+node ui/split-ui.test.js                      # popup vs options split
+node ui/data-ownership.test.js                # export / import / delete-all
+node ui/editor-privacy.test.js                # editor ownership + privacy wipe
+node ui/named-profiles.test.js                # multiple profiles (and v1 migration)
+node ui/cover-letter.test.js                  # cover-letter templates + placeholders
+node ui/application-tracker.test.js           # page info, logging, duplicate warning
 ```
 
-The runner discovers every `*.test.js` in `tests/`; helper files
-(`_popup-source.js`, `run-all.js`, `bench.js`, `probe*.js`, `proof-*.js`) are
-not suites and are ignored.
+The runner discovers every `*.test.js` under `tests/` at any depth; `tools/` and
+the helper files (`_popup-source.js`, `run-all.js`) are not suites and are
+ignored.
 
 Every suite loads its content scripts from the **real** list in
 `shared/index.js` (via `tests/_popup-source.js`), so adding a content script can
