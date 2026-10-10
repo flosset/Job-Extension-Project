@@ -1,11 +1,11 @@
-// cover-letter.js — cover-letter templates with {company} / {role} placeholders.
+// letter.js — cover-letter templates with {company} / {role} placeholders.
 //
 // A letter is composed per application, so nothing here is part of an ordinary
 // fill: the popup shows the finished text, and the user copies it or asks for it
 // to be typed into the form. Placeholders come from the job this page is for,
 // which the content script reports as `page` with every fill.
-
-"use strict";
+//
+// Editing the template list is the other half, in templates.js.
 
 /** Templates on a profile, coerced to [{ id, name, body }] (blanks dropped). */
 function coverTemplates(profile) {
@@ -221,68 +221,4 @@ async function typeCoverLetter() {
   } catch (err) {
     setStatus("Press Fill Application once on this page first, then try again.", "warn");
   }
-}
-
-// --- The options page's template editor ------------------------------------
-
-/** One editable template row (built with the DOM API, never innerHTML). */
-function addTemplateRow(name, body) {
-  const container = $("templateRows");
-  if (!container) return;
-
-  const row = document.createElement("div");
-  row.className = "tpl-row";
-
-  const nameInput = document.createElement("input");
-  nameInput.type = "text";
-  nameInput.className = "tpl-name";
-  nameInput.placeholder = "Frontend";
-  nameInput.value = name || "";
-
-  const bodyInput = document.createElement("textarea");
-  bodyInput.className = "tpl-body";
-  bodyInput.rows = 6;
-  bodyInput.placeholder =
-    "Dear {company} team,\n\nI would like to apply for the {role} role…";
-  bodyInput.value = body || "";
-
-  const remove = document.createElement("button");
-  remove.type = "button";
-  remove.className = "snip-del";
-  remove.title = "Remove template";
-  remove.textContent = "×";
-  remove.addEventListener("click", () => { row.remove(); profileChanged(); });
-
-  const head = document.createElement("div");
-  head.className = "tpl-head";
-  head.appendChild(nameInput);
-  head.appendChild(remove);
-
-  row.appendChild(head);
-  row.appendChild(bodyInput);
-  container.appendChild(row);
-}
-
-/** Render the stored templates into the editor. */
-function renderTemplates(list) {
-  const container = $("templateRows");
-  if (!container) return;
-  container.innerHTML = "";
-  for (const template of coverTemplates({ coverLetterTemplates: list })) {
-    addTemplateRow(template.name, template.body);
-  }
-}
-
-/** Read the template rows back out (blank bodies dropped). */
-function collectTemplates() {
-  const out = [];
-  const container = $("templateRows");
-  if (!container) return out;
-  container.querySelectorAll(".tpl-row").forEach((row) => {
-    const name = (row.querySelector(".tpl-name").value || "").trim();
-    const body = (row.querySelector(".tpl-body").value || "").trim();
-    if (!body) return;
-    out.push({ id: JOB_AUTOFILL_SHARED.newId(), name: name.slice(0, 40), body });
-  });
-  return out;
 }

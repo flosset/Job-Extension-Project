@@ -437,8 +437,8 @@ const find = (list, needle) =>
     popupScripts[0]
   );
   t(
-    "H: editor.js is loaded last",
-    popupScripts[popupScripts.length - 1] === "ui/editor.js",
+    "H: app.js is loaded last",
+    popupScripts[popupScripts.length - 1] === "ui/app.js",
     popupScripts[popupScripts.length - 1]
   );
 

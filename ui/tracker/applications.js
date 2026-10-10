@@ -268,3 +268,20 @@ function exportApplications() {
     setStatus("Could not export the log.", "warn");
   }
 }
+
+/** Wipe the application log, after an explicit confirmation. */
+async function clearApplicationsWithConfirm() {
+  const proceed =
+    typeof window.confirm !== "function" ||
+    window.confirm(
+      "Clear your whole application log?\n\n" +
+        "This removes the log only — your profile and resumes are untouched."
+    );
+  if (!proceed) {
+    setStatus("Cancelled — the log is unchanged.", "warn");
+    return;
+  }
+  await clearApplications();
+  renderApplications();
+  setStatus("Application log cleared.", "ok");
+}
