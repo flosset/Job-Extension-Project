@@ -15,7 +15,16 @@
 // tells us how many frames it reached, so we wait for EVERY one of them to
 // report (or for the deadline) rather than guessing from a quiet gap.
 
-importScripts("shared.js"); // the ONE content-script list + storage keys
+// The shared/ files carry the ONE content-script list + storage keys; index.js
+// must come first because it creates the object the others attach to.
+importScripts(
+  "shared/index.js",
+  "shared/phone.js",
+  "shared/learned.js",
+  "shared/applications.js",
+  "shared/widgets.js",
+  "shared/profiles.js"
+);
 
 const KEYS = JOB_AUTOFILL_SHARED.keys;
 const SCRIPTS = JOB_AUTOFILL_SHARED.contentScripts;

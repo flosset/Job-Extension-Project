@@ -410,9 +410,10 @@ const find = (list, needle) =>
 
   // ---- H. both pages load the same pieces in a workable order ------------
   // Stronger than a hard-coded file list: the popup and the options page must
-  // load the SAME scripts in the SAME order, so a new ui/*.js can never reach
-  // one page and not the other. shared.js must be first (everyone reads its
-  // keys) and editor.js last (it wires controls once the rest is defined).
+  // load the SAME scripts in the SAME order, so a new file can never reach one
+  // page and not the other. The shared bootstrap must be first (everyone reads
+  // the keys it creates) and app.js last (it wires controls once the rest is
+  // defined).
   const scriptList = (html) => {
     const found = [];
     const pattern = /<script\s+src="([^"]+)"\s*>/gi;
@@ -430,7 +431,11 @@ const find = (list, needle) =>
     popupScripts.length > 0 && JSON.stringify(popupScripts) === JSON.stringify(optionsScripts),
     popupScripts.join(", ")
   );
-  t("H: shared.js is loaded first", popupScripts[0] === "shared.js", popupScripts[0]);
+  t(
+    "H: the shared bootstrap is loaded first",
+    popupScripts[0] === "shared/index.js",
+    popupScripts[0]
+  );
   t(
     "H: editor.js is loaded last",
     popupScripts[popupScripts.length - 1] === "ui/editor.js",

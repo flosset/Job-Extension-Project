@@ -10,12 +10,16 @@
 const fs = require("fs");
 const path = require("path");
 const { JSDOM } = require("jsdom");
-const { APP_DIR, POPUP_JS, SHARED } = require("./_popup-source");
+const { APP_DIR, POPUP_JS, SHARED, SHARED_SCRIPTS } = require("./_popup-source");
 
 const APPS_KEY = SHARED.keys.applications;
 
 // page-info.js only needs the data table and the DOM helpers.
-const INFO_SRC = ["shared.js", "content/field-map.js", "content/dom-utils.js", "content/page-info.js"]
+const INFO_SRC = SHARED_SCRIPTS.concat([
+  "content/field-map.js",
+  "content/dom-utils.js",
+  "content/page-info.js"
+])
   .map((file) => fs.readFileSync(path.join(APP_DIR, file), "utf8"))
   .join("\n");
 

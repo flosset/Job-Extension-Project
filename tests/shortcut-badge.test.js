@@ -12,13 +12,15 @@
 const fs = require("fs");
 const path = require("path");
 const { JSDOM } = require("jsdom");
-const { APP_DIR, POPUP_JS, CONTENT_SCRIPTS } = require("./_popup-source");
+const { APP_DIR, POPUP_JS, CONTENT_SCRIPTS, SHARED_SCRIPTS } = require("./_popup-source");
 
 const MANIFEST = JSON.parse(
   fs.readFileSync(path.join(APP_DIR, "manifest.json"), "utf8")
 );
 const WORKER_SRC = fs.readFileSync(path.join(APP_DIR, "background.js"), "utf8");
-const SHARED_SRC = fs.readFileSync(path.join(APP_DIR, "shared.js"), "utf8");
+const SHARED_SRC = SHARED_SCRIPTS
+  .map((file) => fs.readFileSync(path.join(APP_DIR, file), "utf8"))
+  .join("\n");
 
 let pass = 0;
 let fail = 0;
@@ -34,9 +36,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const exists = (file) => fs.existsSync(path.join(APP_DIR, file));
 
 /**
- * Load background.js the way Chrome does. shared.js is inlined first because
- * the worker would otherwise importScripts() it — the real importScripts call
- * is asserted separately, and the stub stands in for it here.
+ * Load background.js the way Chrome does. The shared/ files are inlined first
+ * because the worker would otherwise importScripts() them — the real
+ * importScripts call is asserted separately, and the stub stands in for it here.
  */
 function loadWorker(store, control) {
   const badge = [];
@@ -122,14 +124,20 @@ function loadWorker(store, control) {
       (MANIFEST.permissions || []).indexOf("activeTab") >= 0,
     JSON.stringify(MANIFEST.permissions)
   );
+  // The worker must importScripts() exactly the shared/ files, index.js first —
+  // the same set the injected list names, so the cross-context module can never
+  // drift between the worker, the pages and the injected run.
+  const workerImports = (WORKER_SRC.match(/importScripts\(([\s\S]*?)\)/) || [])[1] || "";
+  const importedFiles = (workerImports.match(/"([^"]+)"/g) || []).map((s) => s.slice(1, -1));
   t(
-    "A: the worker imports the shared list",
-    /importScripts\("shared\.js"\)/.test(WORKER_SRC)
+    "A: the worker imports exactly the shared/ files, index.js first",
+    importedFiles.join(",") === SHARED_SCRIPTS.join(","),
+    importedFiles.join(", ")
   );
 
   // ---- B. nobody can drift on what gets injected -------------------------
   t("B: every listed content script exists", CONTENT_SCRIPTS.every(exists));
-  t("B: shared.js is injected first", CONTENT_SCRIPTS[0] === "shared.js");
+  t("B: the shared bootstrap is injected first", CONTENT_SCRIPTS[0] === "shared/index.js");
   t(
     "B: autofill.js is evaluated last",
     CONTENT_SCRIPTS[CONTENT_SCRIPTS.length - 1] === "content/autofill.js"
