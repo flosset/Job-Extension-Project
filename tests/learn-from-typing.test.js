@@ -408,14 +408,34 @@ const find = (list, needle) =>
       od.querySelector("#snippetRows .snip-value").value === "2 weeks"
   );
 
-  // ---- H. both pages load the pieces in a workable order -----------------
-  const order = ["shared.js", "ui/core.js", "ui/storage.js", "ui/learned.js"];
-  const ordered = (html) =>
-    order.every(
-      (file, i) => i === 0 || html.indexOf('"' + order[i - 1] + '"') < html.indexOf('"' + file + '"')
-    );
-  t("H: the popup loads shared.js before the UI scripts", ordered(popupHtml));
-  t("H: the options page loads the same order", ordered(optionsHtml));
+  // ---- H. both pages load the same pieces in a workable order ------------
+  // Stronger than a hard-coded file list: the popup and the options page must
+  // load the SAME scripts in the SAME order, so a new ui/*.js can never reach
+  // one page and not the other. shared.js must be first (everyone reads its
+  // keys) and editor.js last (it wires controls once the rest is defined).
+  const scriptList = (html) => {
+    const found = [];
+    const pattern = /<script\s+src="([^"]+)"\s*>/gi;
+    let match = pattern.exec(html);
+    while (match !== null) {
+      found.push(match[1]);
+      match = pattern.exec(html);
+    }
+    return found;
+  };
+  const popupScripts = scriptList(popupHtml);
+  const optionsScripts = scriptList(optionsHtml);
+  t(
+    "H: both pages load the same scripts in the same order",
+    popupScripts.length > 0 && JSON.stringify(popupScripts) === JSON.stringify(optionsScripts),
+    popupScripts.join(", ")
+  );
+  t("H: shared.js is loaded first", popupScripts[0] === "shared.js", popupScripts[0]);
+  t(
+    "H: editor.js is loaded last",
+    popupScripts[popupScripts.length - 1] === "ui/editor.js",
+    popupScripts[popupScripts.length - 1]
+  );
 
   console.log(
     `\n${
