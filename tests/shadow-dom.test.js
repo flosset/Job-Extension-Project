@@ -1,4 +1,4 @@
-// e2e29.js — Shadow DOM (web-component ATS widgets).
+// shadow-dom.test.js — Shadow DOM (web-component ATS widgets).
 //
 // Newer ATS widgets render their fields inside a shadow root, which a plain
 // document.querySelectorAll() cannot see — the field simply looks missing. Every

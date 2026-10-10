@@ -1,4 +1,4 @@
-// e2e22.js — "learn from what you type".
+// learn-from-typing.test.js — "learn from what you type".
 //
 // The feature only earns its keep if it is predictable, so this suite is mostly
 // about what is NOT learned:

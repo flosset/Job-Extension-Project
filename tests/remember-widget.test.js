@@ -1,4 +1,4 @@
-// e2e31.js — "remember this widget".
+// remember-widget.test.js — "remember this widget".
 //
 // The feature only earns its keep if it is predictable AND safe, so this suite
 // is as much about what is REFUSED as about what is learned:

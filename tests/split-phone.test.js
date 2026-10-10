@@ -1,4 +1,4 @@
-// e2e28.js — split phone fields (a country-code control + a separate number).
+// split-phone.test.js — split phone fields (a country-code control + a separate number).
 //
 // The rule under test is deliberately conservative: a pair is only treated as a
 // split widget when BOTH halves exist, they sit in the same part of the form,

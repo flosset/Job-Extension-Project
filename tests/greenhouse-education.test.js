@@ -1,4 +1,4 @@
-// e2e30.js — the Greenhouse Education widget (react-select blocks).
+// greenhouse-education.test.js — the Greenhouse Education widget (react-select blocks).
 //
 // The reported bug: pressing Fill on a Greenhouse application added THREE empty
 // Education blocks (by clicking "Add another") and filled none of them.

@@ -21,9 +21,7 @@ if (-not (Test-Path (Join-Path $root 'node_modules\jsdom'))) {
 }
 
 $targets = @()
-$targets += Get-ChildItem -Path $root -Filter 'e2e*.js' | Sort-Object Name | ForEach-Object { $_.FullName }
-$matcher = Join-Path $root 'matcher-test.js'
-if (Test-Path $matcher) { $targets += $matcher }
+$targets += Get-ChildItem -Path $root -Filter '*.test.js' | Sort-Object Name | ForEach-Object { $_.FullName }
 if ($targets.Count -eq 0) { Write-Output 'no test files found'; exit 1 }
 
 $sw = [Diagnostics.Stopwatch]::StartNew()

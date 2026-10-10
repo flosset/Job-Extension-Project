@@ -1,4 +1,4 @@
-// e2e13.js — negation-safe answer matching. The guarantee under test: a stored
+// negation-safe-matching.test.js — negation-safe answer matching. The guarantee under test: a stored
 // "Yes" must NEVER land on an option or radio that reads "I am not
 // authorized ...", and when nothing agrees the field is left BLANK rather
 // than answered wrongly. Exercises the shared matcher directly against

@@ -1,4 +1,4 @@
-// e2e15.js — file-attach SAFETY. Three guarantees under test:
+// file-attach-safety.test.js — file-attach SAFETY. Three guarantees under test:
 //   1. an input that already holds a file is never clobbered (kept, not replaced);
 //   2. exactly ONE upload signal is produced, so a react-dropzone-style widget
 //      (onDrop wired to BOTH the hidden input's change and the root drop

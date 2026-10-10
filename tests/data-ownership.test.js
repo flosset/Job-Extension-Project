@@ -1,4 +1,4 @@
-// e2e17.js — profile data ownership. Loads the REAL popup.html + popup.js into
+// data-ownership.test.js — profile data ownership. Loads the REAL popup.html + popup.js into
 // jsdom and exercises: export round-trip, import sanitisation, unsaved-change
 // tracking (dirty badge), and delete-all.
 "use strict";

@@ -1,4 +1,4 @@
-// e2e16.js — repeatable-section SAFETY. Guarantees under test:
+// repeatable-safety.test.js — repeatable-section SAFETY. Guarantees under test:
 //   1. surplus blocks are COUNTED but never deleted unless the caller opts in;
 //   2. a confirmation dialog is accepted only if it APPEARED because of the
 //      delete click we just made, and only if it is actually about deleting —

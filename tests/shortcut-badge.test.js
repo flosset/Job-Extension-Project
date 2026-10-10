@@ -1,4 +1,4 @@
-// e2e23.js — the Alt+Shift+F shortcut and the toolbar badge.
+// shortcut-badge.test.js — the Alt+Shift+F shortcut and the toolbar badge.
 //
 // The shortcut exists so a multi-page Workday form does not need the popup
 // opened (and closed) for every page, so this suite checks that the fill really

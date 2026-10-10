@@ -1,4 +1,4 @@
-// matcher-test.js — self-identification option matcher, run against the REAL
+// matcher.test.js — self-identification option matcher, run against the REAL
 // source files.
 //
 // This test used to duplicate normalize/expandValueTokens/findOptionForValue in

@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 const files = fs.readdirSync(__dirname)
-  .filter((file) => /^e2e.*\.js$/.test(file) || file === "matcher-test.js").sort();
+  .filter((file) => /\.test\.js$/.test(file)).sort();
 const dir = path.join(__dirname, ".last-run");
 fs.mkdirSync(dir, { recursive: true });
 Promise.all(files.map((file) => new Promise((resolve) => {

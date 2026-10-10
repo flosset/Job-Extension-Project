@@ -325,34 +325,40 @@ Backup sections explicitly present but empty are cleared on restore; absent
 sections in older/profile-only files remain untouched. CSV cells that could be
 spreadsheet formulas are prefixed with an apostrophe.
 
-**Or a single suite:**
+**Or a single suite** (each file is `<area>.test.js`):
 
 ```
 cd tests
-node e2e2.js      # main fill pass
-node e2e7.js      # answer bank + unfilled report
-node e2e11.js     # Work Experience sections
-node e2e12.js     # Education sections
-node e2e13.js     # negation-safe answer matching
-node e2e14.js     # run-completion model
-node e2e15.js     # resume attach safety
-node e2e16.js     # destructive-trim gating + dialog scoping
-node e2e17.js     # export / import / delete-all
-node e2e18.js     # popup vs options split
-node e2e19.js     # "fields left for you"
-node e2e20.js     # answer-bank scope, loose selectors, full name
-node e2e21.js     # optional broad host access
-node e2e22.js     # learn-from-typing + the four dedupe rules
-node e2e23.js     # Alt+Shift+F, the badge, cross-context drift guards
-node e2e24.js     # "fields left for you" survives the popup closing
-node e2e25.js     # the application tracker: page info, logging, duplicate warning
-node e2e26.js     # multiple profiles (and the v1 migration)
-node e2e27.js     # cover-letter templates and placeholders
-node e2e28.js     # split phone fields (country code + number)
-node e2e29.js     # open Shadow DOM traversal
-node e2e30.js     # Greenhouse's react-select Education block (reuse, not clones)
-node matcher-test.js
+node fill-basic.test.js              # main fill pass
+node answer-bank-unfilled.test.js    # answer bank + unfilled report
+node work-experience-sections.test.js # Work Experience sections
+node education-sections.test.js      # Education sections
+node negation-safe-matching.test.js  # negation-safe answer matching
+node run-completion.test.js          # run-completion model
+node file-attach-safety.test.js      # resume attach safety
+node repeatable-safety.test.js       # destructive-trim gating + dialog scoping
+node data-ownership.test.js          # export / import / delete-all
+node split-ui.test.js                # popup vs options split
+node unfilled-review.test.js         # "fields left for you"
+node answer-bank-scope.test.js       # answer-bank scope, loose selectors, full name
+node optional-host-access.test.js    # optional broad host access
+node learn-from-typing.test.js       # learn-from-typing + the four dedupe rules
+node shortcut-badge.test.js          # Alt+Shift+F, the badge, cross-context drift guards
+node unfilled-survives.test.js       # "fields left for you" survives the popup closing
+node application-tracker.test.js     # the application tracker: page info, logging, duplicate warning
+node named-profiles.test.js          # multiple profiles (and the v1 migration)
+node cover-letter.test.js            # cover-letter templates and placeholders
+node split-phone.test.js             # split phone fields (country code + number)
+node shadow-dom.test.js              # open Shadow DOM traversal
+node greenhouse-education.test.js    # Greenhouse's react-select Education block (reuse, not clones)
+node remember-widget.test.js         # "remember this widget" learn/refuse rules
+node editor-privacy.test.js          # editor data ownership + privacy wipe barrier
+node matcher.test.js                 # field-matcher option table
 ```
+
+The runner discovers every `*.test.js` in `tests/`; helper files
+(`_popup-source.js`, `run-all.js`, `bench.js`, `probe*.js`, `proof-*.js`) are
+not suites and are ignored.
 
 Every suite loads its content scripts from the **real** list in `shared.js` (via
 `tests/_popup-source.js`), so adding a content script can never leave a suite

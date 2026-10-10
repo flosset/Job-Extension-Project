@@ -1,4 +1,4 @@
-// e2e27.js — cover-letter templates.
+// cover-letter.test.js — cover-letter templates.
 //
 //   * {placeholders} are filled from the job on the page, and an unknown one is
 //     left VISIBLE rather than silently becoming an empty string,

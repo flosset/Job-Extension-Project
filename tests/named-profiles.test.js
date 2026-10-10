@@ -1,4 +1,4 @@
-// e2e26.js — multiple profiles (a "Frontend" resume vs a "Full-stack" one).
+// named-profiles.test.js — multiple profiles (a "Frontend" resume vs a "Full-stack" one).
 //
 // The design under test: a profile is a COMPLETE copy of the profile object,
 // including its own resume, and the ACTIVE one is mirrored into the jobProfile

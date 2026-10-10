@@ -1,4 +1,4 @@
-// e2e24.js — "N fields left for you" must survive the popup closing.
+// unfilled-survives.test.js — "N fields left for you" must survive the popup closing.
 //
 // The reported bug: the list was rendered ONLY from the live fill messages, and
 // the popup is a brand-new document every time it opens — so the list vanished

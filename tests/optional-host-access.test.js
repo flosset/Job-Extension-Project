@@ -1,4 +1,4 @@
-// e2e21.js — optional broad host access (review #6).
+// optional-host-access.test.js — optional broad host access (review #6).
 //
 // The gap: activeTab covers the page you clicked on, and host_permissions cover
 // the ATS domains we pre-listed. If a career site embeds an ATS whose domain is

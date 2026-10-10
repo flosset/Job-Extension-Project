@@ -1,4 +1,4 @@
-// e2e14.js — the popup's run-completion model. Regression under test: a frame
+// run-completion.test.js — the popup's run-completion model. Regression under test: a frame
 // that reports LATE (after the old 300 ms quiet gap) used to be silently
 // dropped. Completion is now defined as "every frame executeScript injected
 // into has reported", with a hard deadline that surfaces non-responding frames.

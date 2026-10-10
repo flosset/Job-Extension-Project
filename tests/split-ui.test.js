@@ -1,4 +1,4 @@
-// e2e18.js — split UI: full-page editor (options.html) vs compact popup.
+// split-ui.test.js — split UI: full-page editor (options.html) vs compact popup.
 // The critical guarantee under test: a page that shows only PART of the profile
 // may only write the parts it shows — saving from the popup must never wipe the
 // fields that now live on the options page.
