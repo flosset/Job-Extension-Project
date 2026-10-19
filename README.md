@@ -143,6 +143,23 @@ puts them all back — on the same machines or a new one. That file contains
 personal details, so keep it somewhere safe. `Delete all` wipes everything from
 the browser.
 
+## License and contributions
+
+This project is source available under [PolyForm Noncommercial 1.0.0](LICENSE).
+Uses outside that license require separate permission from the relevant copyright
+holders. For commercial licensing inquiries, contact the repository owner through
+their GitHub profile; opening an issue does not grant permission.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, pull requests, testing, and packaging.
+Bug reports and sanitized form reproductions are welcome.
+
+## Release package
+
+Run `./scripts/package.ps1` from PowerShell in the repository root. It creates
+`dist/private-job-autofill-<version>.zip`, using the version in `manifest.json`.
+The package includes runtime files and the license, excluding tests and local settings.
+Extract a release ZIP and follow the unpacked installation instructions below.
+
 ## Install (unpacked)
 
 1. Open `chrome://extensions`, turn on **Developer mode**.
