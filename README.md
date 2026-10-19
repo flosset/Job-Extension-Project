@@ -4,6 +4,8 @@ A privacy-first, zero-idle Chrome (MV3) extension that fills job-application
 forms from a profile stored **only in your browser**. No AI, no network calls,
 no telemetry, no accounts.
 
+See [Architecture](docs/architecture.md) for component diagrams, fill sequences, and storage/data flows.
+
 ## What it does
 
 - Fills the standard fields — name, contact, links, address, work
