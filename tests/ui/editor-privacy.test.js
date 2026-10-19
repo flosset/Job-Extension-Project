@@ -89,7 +89,7 @@ async function editor() {
   assert.deepStrictEqual(e.store, {}, "late file-reader callbacks must not restore a deleted resume");
 
   const profiles = { activeId: "a", items: [
-    { id: "a", name: "Alice", profile: { firstName: "Alice", lastName: "Old", email: "a@x.com" } },
+    { id: "a", name: "Alice", profile: { firstName: "Alice", lastName: "Old", email: "a@example.com" } },
     { id: "b", name: "Bob", profile: { firstName: "Bob" } }
   ] };
   e.store.jobProfiles = profiles;

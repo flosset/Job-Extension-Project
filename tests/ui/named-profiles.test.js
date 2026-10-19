@@ -83,7 +83,7 @@ const statusText = (popup) => popup.d.getElementById("status").textContent;
 
 (async () => {
   // ---- A. a v1 install is adopted, not thrown away -----------------------
-  const store = { jobProfile: { firstName: "Jane", lastName: "Doe", email: "jane@x.com" } };
+  const store = { jobProfile: { firstName: "Jane", lastName: "Doe", email: "jane@example.com" } };
   const first = openOptions(store);
   await sleep(60);
   t("A: one profile appears", first.t.profileState.items.length === 1, first.t.profileState.items.length);

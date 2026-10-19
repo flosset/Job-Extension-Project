@@ -118,13 +118,13 @@ function val(window, id) {
     lastName: "Doe",
     phone: "+1 555 111 2222",
     state: "TX",
-    portfolio: "https://jane.dev"
+    portfolio: "https://portfolio.example.com"
   });
   const lw = loose.window;
   check("#3 first_name IS filled", val(lw, "first_name"), "Jane");
   check("#3 address_state IS filled", val(lw, "state"), "TX");
   check("#3 tel IS filled", val(lw, "tel"), "+1 555 111 2222");
-  check("#3 personal_site IS filled", val(lw, "personal_site"), "https://jane.dev");
+  check("#3 personal_site IS filled", val(lw, "personal_site"), "https://portfolio.example.com");
   check("#3 'statement' NOT treated as state", val(lw, "statement"), "");
   check("#3 'hotel' NOT treated as phone", val(lw, "hotel"), "");
   check("#3 'last_employer' NOT treated as last name", val(lw, "last_employer"), "");

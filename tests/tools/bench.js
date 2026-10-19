@@ -60,9 +60,9 @@ window.document.querySelectorAll = (...args) => { selectorCalls++; return realQS
 
 window.chrome = {
   storage: { local: { get: async () => ({ jobProfile: {
-    firstName: "Jane", lastName: "Doe", email: "jane@x.com", phone: "+1 555 123 4567",
-    linkedin: "https://linkedin.com/in/jane", github: "https://github.com/jane",
-    portfolio: "https://jane.dev", address: "1 Main St", city: "Austin",
+    firstName: "Jane", lastName: "Doe", email: "jane@example.com", phone: "+1 555 123 4567",
+    linkedin: "https://example.com/linkedin-profile", github: "https://example.com/github-profile",
+    portfolio: "https://portfolio.example.com", address: "1 Main St", city: "Austin",
     state: "TX", zip: "78701", country: "United States"
   } }) } },
   runtime: { sendMessage: () => {} }

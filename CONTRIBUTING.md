@@ -72,6 +72,8 @@ npm test
 - For behavior changes, add a focused regression case to the relevant existing test suite.
 - Preserve local storage, user-triggered filling, and explicit consent for destructive changes.
 - Never add real resumes, profile backups, credentials, or other people's contact details to reports or fixtures.
+- Use reserved example domains such as `example.com` for fixture emails and profile URLs;
+  do not point fictional people at real accounts or contact addresses.
 
 For a form bug, include the browser version, ATS name, expected and actual behavior,
 and a minimal sanitized HTML example when possible. Remove personal data and tokens

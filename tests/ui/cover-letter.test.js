@@ -95,7 +95,7 @@ function storeWith(template, page) {
     jobProfile: {
       firstName: "Jane",
       lastName: "Doe",
-      email: "jane@x.com",
+      email: "jane@example.com",
       phone: "+1 555 123 4567",
       city: "Austin",
       coverLetterTemplates: [template || { id: "t1", name: "Frontend", body: BODY }]
@@ -156,7 +156,7 @@ const BODY =
   );
   t("B: {company} is filled", /Dear Acme team/.test(composed));
   t("B: {role} is filled", /the Senior Frontend Engineer role/.test(composed));
-  t("B: profile placeholders are filled", /in Austin/.test(composed) && /Jane Doe \(jane@x.com\)/.test(composed));
+  t("B: profile placeholders are filled", /in Austin/.test(composed) && /Jane Doe \(jane@example.com\)/.test(composed));
   t("B: a repeated placeholder is filled everywhere", (composed.match(/Jane/g) || []).length >= 1);
   t(
     "B: an unknown placeholder is LEFT VISIBLE",

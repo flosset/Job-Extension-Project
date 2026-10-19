@@ -24,7 +24,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Run the REAL content scripts against `html` with `profile`. */
 async function pageWith(html, profile) {
-  const store = { jobProfile: profile || { firstName: "Jane", lastName: "Doe", email: "j@x.com" } };
+  const store = { jobProfile: profile || { firstName: "Jane", lastName: "Doe", email: "j@example.com" } };
   const dom = new JSDOM(html, {
     runScripts: "dangerously",
     pretendToBeVisual: true,
@@ -120,7 +120,7 @@ const deepField = (p, selector) => {
 const SHADOW_PROFILE = {
   firstName: "Jane",
   lastName: "Doe",
-  email: "j@x.com",
+  email: "j@example.com",
   country: "United States",
   city: "Austin"
 };
@@ -136,7 +136,7 @@ const SHADOW_PROFILE = {
   );
   t(
     "A: a shadow email field is filled",
-    deepField(a, "#mail").value === "j@x.com",
+    deepField(a, "#mail").value === "j@example.com",
     deepField(a, "#mail").value
   );
   t(
@@ -173,7 +173,7 @@ const SHADOW_PROFILE = {
   // ---- D. labels inside the shadow root are read -------------------------
   t(
     "D: a label inside the root was used for matching",
-    deepField(a, "#mail").value === "j@x.com"
+    deepField(a, "#mail").value === "j@example.com"
   );
   t(
     "D: queryAll finds shadow fields",

@@ -156,10 +156,10 @@ const slugForKeyword = (recipe, keyword) =>
   // ---- B. a repeated group you fill by hand becomes a CANDIDATE -----------
   // This is the user's own story: "+" twice, then two sections filled in.
   commit(B.w, id(B, "refName0"), "Bob Smith");
-  commit(B.w, id(B, "refEmail0"), "bob@corp.com");
+  commit(B.w, id(B, "refEmail0"), "bob@example.com");
   commit(B.w, id(B, "refPhone0"), "555-0100");
   commit(B.w, id(B, "refName1"), "Alice Jones");
-  commit(B.w, id(B, "refEmail1"), "alice@corp.com");
+  commit(B.w, id(B, "refEmail1"), "alice@example.com");
   await sleep(900);
 
   const pending = (B.store.widgetCandidates || {}).candidates || [];
@@ -180,13 +180,13 @@ const slugForKeyword = (recipe, keyword) =>
   t(
     "B: block one holds its own three values",
     !!nameSlug && cand.rows[0][nameSlug].value === "Bob Smith" &&
-      cand.rows[0][emailSlug].value === "bob@corp.com" &&
+      cand.rows[0][emailSlug].value === "bob@example.com" &&
       cand.rows[0][phoneSlug].value === "555-0100"
   );
   t(
     "B: block two holds its own two values",
     !!nameSlug && cand.rows[1][nameSlug].value === "Alice Jones" &&
-      cand.rows[1][emailSlug].value === "alice@corp.com",
+      cand.rows[1][emailSlug].value === "alice@example.com",
     !!cand && JSON.stringify(cand.rows[1])
   );
   t(
@@ -272,7 +272,7 @@ const slugForKeyword = (recipe, keyword) =>
   await sleep(60);
   t("E: the saved widget replays", replay.filled > 0, replay.filled);
   t("E: one entry is reported", replay.applied.length === 1, replay.applied.length);
-  t("E: block one is filled", id(E, "refName0").value === "Bob Smith" && id(E, "refEmail0").value === "bob@corp.com");
+  t("E: block one is filled", id(E, "refName0").value === "Bob Smith" && id(E, "refEmail0").value === "bob@example.com");
   t("E: block two is filled too", id(E, "refName1").value === "Alice Jones", id(E, "refName1").value);
   t("E: no block was added or removed", E.d.querySelectorAll("#refs .ref-block").length === blocksBefore, blocksBefore);
   t(
@@ -365,11 +365,11 @@ const slugForKeyword = (recipe, keyword) =>
   const bind = B.JA.widgetLearnInternals.profileKeyFor;
   t(
     "H: a value that IS a profile value binds to it",
-    bind("Reference Email", "bob@corp.com", { email: "bob@corp.com" }) === "email"
+    bind("Reference Email", "bob@example.com", { email: "bob@example.com" }) === "email"
   );
   t(
     "H: a value that is NOT a profile value stays a literal",
-    bind("Reference Email", "bob@corp.com", { email: "other@corp.com" }) === ""
+    bind("Reference Email", "bob@example.com", { email: "other@example.com" }) === ""
   );
 
   // ---- I. the offer, the Save, and the stale-delete on the profile page ----
@@ -477,7 +477,7 @@ const slugForKeyword = (recipe, keyword) =>
 
   // ...but a genuinely hand-typed field is still learned — exactly once.
   commit(J.w, id(J, "refName1"), "Alice Jones");
-  commit(J.w, id(J, "refEmail1"), "alice@corp.com");
+  commit(J.w, id(J, "refEmail1"), "alice@example.com");
   await sleep(900);
   const jCands = (J.store.widgetCandidates || {}).candidates || [];
   t("J: a genuine hand-fill is still learned once", jCands.length === 1, jCands.length);
