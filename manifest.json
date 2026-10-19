@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Private Job Autofill",
-  "version": "2.3.0",
+  "version": "2.3.2",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlaA/VUbkwEZF42+qPfplGhJrlYP95iNivdZjeRSLeW0WOwHuOwFruGp6Ajp0la5FwvEX4j/sjeaMmwzrzfaqYwdICExT8MTqy4Zev9t7M4AdO+it0Rynk6H9zQIisELNNLqOPQg4OgQiD+H+mSfhDvv6HgEQl+3dylFV9aE8ctuDuEhuDSgR4PDRPhQfZ6adQ5eKBoY0F74ceECHh/9t3aoe/CFw7jaQeAVgPw4Vo8AW8lUQS3r0c47Vnfb0AqluqbyiERc6LxEWBdchyHqUmcbue7qvxikIrRuX1avKxCTBCzKbjoj2GhhGBmUzMAJcR2TjbAD9ZCoYKo9BhzoBxwIDAQAB",
   "description": "Privacy-first, zero-lag job application autofill with an application tracker, multiple profiles, cover-letter templates and Shadow DOM support. 100% local storage. No tracking, no telemetry, no external requests.",
   "permissions": ["storage", "unlimitedStorage", "activeTab", "scripting"],
   "host_permissions": [

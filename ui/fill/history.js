@@ -122,7 +122,9 @@ async function restoreRun() {
   }
   if (list.length > 0) {
     renderUnfilled(list);
-    showGrantRow(results.iframes > 0 && results.frames < 1 + results.iframes);
+    // Same predicate as the live path (defined in ui/fill/aggregate.js), so the
+    // offer cannot reappear on a later popup open for a run that filled fine.
+    showGrantRow(framesOutOfReach(results));
     setStatus(
       `Left for you after your fill at ${formatTime(record.at)} — ` +
         "press Fill Application to re-check.",

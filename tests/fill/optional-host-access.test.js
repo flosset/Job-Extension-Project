@@ -7,7 +7,9 @@
 //   1. nothing is requested until the user clicks;
 //   2. the offer only appears when part of the page was genuinely unreachable;
 //   3. an already-granted permission is not offered again;
-//   4. there is no nagging when the page has no hidden frames.
+//   4. there is no nagging when the page has no hidden frames;
+//   5. a SUCCESSFUL fill never offers it, however many iframes the page has
+//      (case F — the regression this file exists to hold).
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -63,7 +65,7 @@ function loadPopup(opts) {
   // popup.js is a classic script; hand its internals out from inside the eval.
   window.eval(
     POPUP_JS +
-      "\n; window.__t = { aggregate, showGrantRow, requestAnySiteAccess };"
+      "\n; window.__t = { aggregate, showGrantRow, requestAnySiteAccess, framesOutOfReach };"
   );
   // jsdom has already fired DOMContentLoaded, so fire it again to run the
   // bootstrap (which is what wires the buttons).
@@ -169,6 +171,57 @@ function loadPopup(opts) {
   t("E: offer stays hidden with no hidden frames", e.document.getElementById("grantRow").hidden === true);
   t("E: normal fill status unaffected", /Filled 3 fields/i.test(eStatus), eStatus);
   aggE.cancel();
+
+  // --- F. THE REGRESSION: a successful fill on a page that has iframes -----
+  // The reported bug. job-boards.greenhouse.io carries hidden plumbing iframes
+  // (analytics/session/"Powered by"), so the top frame reported iframes > 0
+  // while only the top frame ever replied. The old condition
+  // `iframes > 0 && frames < 1 + iframes` therefore concluded a frame was
+  // unreachable and offered broad host access — on a run that had just filled
+  // 8 fields and attached the resume. The note text was suppressed (it also
+  // required filled === 0) but the button was not, so the user saw an offer
+  // whose own explanation had been withheld.
+  const f = loadPopup({ alreadyGranted: false });
+  await sleep(60);
+  const aggF = f.window.__t.aggregate;
+  aggF.deadlineMs = 50;
+  aggF.start();
+  aggF.setExpected(1);
+  aggF.add({
+    type: "JOB_AUTOFILL_RESULT",
+    status: "ok",
+    filled: 8,
+    attached: 1,
+    scanned: 12,
+    iframes: 1,          // a plumbing iframe the top frame counted
+    unfilled: []
+  });
+  aggF.flush(false);
+  await sleep(60);
+  const fStatus = f.document.getElementById("status").textContent;
+  t(
+    "F: a SUCCESSFUL fill never offers broad access",
+    f.document.getElementById("grantRow").hidden === true
+  );
+  t("F: the fill result still renders", /Filled 8 fields/i.test(fStatus), fStatus);
+  t(
+    "F: no unreachable-frame note either",
+    !/could not reach/i.test(fStatus),
+    fStatus
+  );
+  aggF.cancel();
+
+  // --- G. the predicate itself, at every boundary --------------------------
+  // Pinned directly so the two call sites (live + stored-run rebuild) cannot
+  // drift apart, and so the `filled === 0` guard cannot be dropped again.
+  const P = f.window.__t.framesOutOfReach;
+  t("G: iframes but a full fill -> no offer", P({ iframes: 1, frames: 1, filled: 8 }) === false);
+  t("G: iframes and nothing filled -> offer", P({ iframes: 1, frames: 1, filled: 0 }) === true);
+  t("G: no iframes -> never offer", P({ iframes: 0, frames: 1, filled: 0 }) === false);
+  t("G: every frame replied -> no offer", P({ iframes: 2, frames: 3, filled: 0 }) === false);
+  t("G: two iframes, one missing, no fill -> offer", P({ iframes: 2, frames: 2, filled: 0 }) === true);
+  t("G: missing results -> no offer", P(null) === false);
+  t("G: undefined fields -> no offer", P({}) === false);
 
   console.log("");
   const verdict = fail === 0 ? "PASS" : "FAIL";

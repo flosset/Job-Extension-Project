@@ -142,14 +142,32 @@
   }
 
   /**
-   * Count iframes in THIS frame (only meaningful in the top frame). Reported so
-   * the popup can tell the difference between "nothing matched" and "part of
-   * this page is in a frame we were not allowed to reach".
+   * Count the iframes in THIS frame that could plausibly hold an application
+   * form (only meaningful in the top frame). Reported so the popup can tell the
+   * difference between "nothing matched" and "part of this page is in a frame we
+   * were not allowed to reach".
+   *
+   * Deliberately NOT a raw `querySelectorAll("iframe").length`: a page carries
+   * hidden plumbing frames — analytics beacons, session/CSRF helpers, a
+   * "Powered by" embed — that never load a form and that we were never meant to
+   * inject into. Counting those made a fully successful fill look like it had
+   * missed a frame, and offered broad host access for nothing. A frame is only
+   * interesting if it is rendered and big enough to contain fields.
    */
   function iframeCount() {
     try {
       if (window.top !== window) return 0;
-      return document.querySelectorAll("iframe").length;
+      return Array.from(document.querySelectorAll("iframe")).filter((frame) => {
+        try {
+          if (frame.hidden) return false;
+          if (frame.getAttribute("aria-hidden") === "true") return false;
+          const rect = frame.getBoundingClientRect();
+          // A 0x0 (or near-zero) frame is a beacon, not a form.
+          return rect.width >= 50 && rect.height >= 50;
+        } catch (err) {
+          return false;
+        }
+      }).length;
     } catch (err) {
       return 0; // cross-origin window access — this frame is not the top one
     }

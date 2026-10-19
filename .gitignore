@@ -6,3 +6,10 @@ tests/.last-run/
 
 # Release build output (regenerate with the package script).
 dist/
+
+# Playwright MCP scratch: page snapshots it writes into the working directory,
+# and the launch config below, which points at this machine's Chromium and this
+# repo's absolute path.
+.playwright-mcp/
+mcp-config.json
+.acl-recovery

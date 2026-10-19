@@ -20,6 +20,28 @@
 const RUN_DEADLINE_MS = JOB_AUTOFILL_SHARED.runDeadlineMs;
 const FRAME_GRACE_MS = 250;    // settle time once every expected frame replied
 
+/**
+ * Did this run leave part of the page unfillable because a frame was out of
+ * reach — the one case worth offering broad host access for?
+ *
+ * `iframes` is the top frame's count of FORM-CAPABLE iframes (see
+ * content/matching/unfilled-report.js); `frames` is how many frames actually
+ * reported. A shortfall therefore means a real frame never answered.
+ *
+ * The `filled === 0` requirement is load-bearing: a run that filled fields has
+ * demonstrably reached the form, so a missing frame is not blocking anything.
+ * Without it, a page with any unfilled-by-us iframe nagged for permission even
+ * after a perfect fill. This is the ONE definition — the popup rebuilds the
+ * offer from a stored run, and it must agree with the live path exactly.
+ */
+function framesOutOfReach(results) {
+  if (!results) return false;
+  const iframes = Number(results.iframes) || 0;
+  const frames = Number(results.frames) || 0;
+  const filled = Number(results.filled) || 0;
+  return iframes > 0 && frames < 1 + iframes && filled === 0;
+}
+
 const aggregate = {
   active: false,
   results: null,
@@ -240,9 +262,11 @@ const aggregate = {
 
     // Part of the page may be in a frame we were not allowed to reach — an
     // embedded ATS whose domain is not in our pre-listed hosts. Offer the
-    // optional broad-access permission instead of failing silently.
-    const unreachable = r.iframes > 0 && r.frames < 1 + r.iframes;
-    if (unreachable && r.filled === 0) {
+    // optional broad-access permission instead of failing silently. One
+    // predicate drives BOTH the note and the offer, so the button can never
+    // appear without the explanation that justifies it.
+    const unreachable = framesOutOfReach(r);
+    if (unreachable) {
       notes.push("Part of this page is in a frame I could not reach.");
     }
     showGrantRow(unreachable);
