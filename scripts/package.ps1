@@ -11,7 +11,7 @@ New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 $archivePath = Join-Path $outputDirectory "private-job-autofill-$($manifest.version).zip"
 
 # Explicit allowlist: local settings, fixtures, and test data never enter a release.
-$files = @('manifest.json', 'background.js', 'popup.html', 'options.html', 'ui.css', 'LICENSE')
+$files = @('manifest.json', 'background.js', 'popup.html', 'options.html', 'ui.css', 'LICENSE.md')
 foreach ($directory in @('content', 'shared', 'ui')) {
     $files += Get-ChildItem -LiteralPath (Join-Path $projectRoot $directory) -File -Recurse -Filter '*.js' |
         ForEach-Object { $_.FullName.Substring($projectRoot.Length + 1).Replace('\', '/') }
