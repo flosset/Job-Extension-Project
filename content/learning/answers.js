@@ -105,6 +105,10 @@
 
   /** The QUESTION a control belongs to (the group's wording for a radio set). */
   function questionFor(el) {
+    if (JA.isComboboxInput && JA.isComboboxInput(el)) {
+      const control = el.closest('[class*="select__control"]');
+      if (control) return clean(JA.comboLabel(control)).slice(0, 60);
+    }
     if (el.type === "radio") {
       const signal = JA.radioGroupSignal ? JA.radioGroupSignal(radiosByName(el)) : "";
       const text = clean(signal);
@@ -127,6 +131,13 @@
 
   /** What the user actually committed, as text the bank can match later. */
   function answerFor(el) {
+    if (JA.isComboboxInput && JA.isComboboxInput(el)) {
+      const control = el.closest('[class*="select__control"]');
+      if (!control || el.getAttribute("aria-expanded") === "true" ||
+          control.querySelector('[class*="multi-value"], [class*="multiValue"]')) return "";
+      const selected = JA.comboValueEl(control);
+      return selected ? clean(selected.textContent).slice(0, 500) : "";
+    }
     if (el.tagName === "SELECT") {
       if (JA.isSelectEmpty && JA.isSelectEmpty(el)) return "";
       const option = el.options && el.options[el.selectedIndex];
@@ -203,6 +214,9 @@
   function onChange(event) {
     const el = event && event.target;
     if (!el || !el.tagName) return;
+    // React's search box emits blur/change too. Observe committed value nodes
+    // after rendering instead of recording search text or an old selection.
+    if (JA.isComboboxInput && JA.isComboboxInput(el)) return;
     if (
       el.tagName === "INPUT" &&
       SKIP_INPUT_TYPES.indexOf((el.type || "").toLowerCase()) !== -1
@@ -210,6 +224,23 @@
       return;
     }
     record(el);
+  }
+
+  const comboValues = new WeakMap();
+  function observeComboSelections() {
+    if (!JA.comboControls) return;
+    for (const control of JA.comboControls()) {
+      const input = JA.comboInput(control);
+      if (!input) continue;
+      // Opening a menu does not erase its last committed selection.
+      if (input.getAttribute("aria-expanded") === "true") continue;
+      const value = answerFor(input);
+      const previous = comboValues.get(control);
+      comboValues.set(control, value);
+      // Extension fills must not teach themselves, including on later runs.
+      if (window.__jobAutofillActive || !value || value === previous) continue;
+      record(input);
+    }
   }
 
   /** Load the bank once, so rule 1 needs no storage read per commit. */
@@ -307,6 +338,16 @@
     // reports the change, and we never depend on holding the node ourselves.
     document.addEventListener("change", onChange, true);
     document.addEventListener("blur", onChange, true);
+    // Seed before observing: an existing selection is not a new user answer.
+    for (const control of JA.comboControls ? JA.comboControls() : []) {
+      const input = JA.comboInput(control);
+      if (input) comboValues.set(control, answerFor(input));
+    }
+    const comboObserver = new MutationObserver(observeComboSelections);
+    comboObserver.observe(document.documentElement, {
+      childList: true, subtree: true, characterData: true,
+      attributes: true, attributeFilter: ["aria-expanded"]
+    });
     refreshBank();
 
     watch.update = (next) => {
@@ -316,6 +357,7 @@
     if (chrome.storage.onChanged) chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "local" || !changes[PROFILE_KEY] || changes[PROFILE_KEY].newValue !== undefined) return;
       cleared = true;
+      comboObserver.disconnect();
       generation++;
       clearTimeout(flushTimer);
       flushTimer = null;

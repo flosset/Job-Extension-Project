@@ -114,6 +114,17 @@
       if (push(describeField(el), JA.isRequiredField(el), el)) break;
     }
 
+    // Custom dropdowns are questions; their search inputs are not answers.
+    for (const control of JA.comboControls ? JA.comboControls() : []) {
+      if (out.length >= 40) break;
+      const input = JA.comboInput(control);
+      if (!input || input.disabled || control.getAttribute("aria-disabled") === "true" ||
+          !JA.isVisible(control) || JA.comboValueEl(control) ||
+          control.querySelector('[class*="multi-value"], [class*="multiValue"]')) continue;
+      const label = JA.comboLabel(control).slice(0, 60);
+      if (push(label, JA.comboRequired(control), control)) break;
+    }
+
     // Radio groups: one entry per QUESTION, never one per button.
     if (JA.radioGroups && out.length < 40) {
       for (const group of JA.radioGroups()) {

@@ -353,7 +353,8 @@
     // Collected before `revealed` is appended: a revealed dropdown's label is
     // the option list, not a question, so it must never become a learned answer.
     const missing = JA.report.collectUnfilled(used);
-    const unfilled = missing.concat(revealed).slice(0, 40);
+    const revealedRefs = new Set(revealed.map(entry => entry.ref).filter(Boolean));
+    const unfilled = missing.filter(entry => !revealedRefs.has(entry.ref)).concat(revealed).slice(0, 40);
     const scanned = JA.report.scanCount();
     const iframes = JA.report.iframeCount();
     console.log(

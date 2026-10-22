@@ -350,6 +350,9 @@
     const input = JA.comboInput(control);
     const bits = [
       input ? input.getAttribute("aria-label") : "",
+      // Greenhouse links the same label through both for and aria-labelledby.
+      // Prefer its text once rather than the combined signal's duplicate.
+      input && input.labels && input.labels[0] ? input.labels[0].textContent : "",
       input ? JA.labelTextFor(input) : "",
       JA.labelTextFor(control),
       control.getAttribute("aria-label"),
