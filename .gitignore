@@ -1,5 +1,6 @@
 # Dependencies for the test suite (run `npm install` inside tests/).
 node_modules/
+AGENTS.md
 
 # Test run artifacts.
 tests/.last-run/
