@@ -123,6 +123,8 @@ async function persist(profile) {
   if (!(await task)) return;
   if (revision !== editRevision) return;
   storedProfile = profile;
+  if (typeof renderRecipes === "function") renderRecipes();
+  if (typeof renderWidgetOffer === "function") renderWidgetOffer();
   storedResume = profile.resumeFile;
   pendingResume = null;
   renderResumeInfo();
@@ -232,6 +234,8 @@ function openOptionsPage() {
 function fillFormFromProfile(profile) {
   const source = profile || {};
   storedProfile = source;
+  if (typeof renderRecipes === "function") renderRecipes();
+  if (typeof renderWidgetOffer === "function") renderWidgetOffer();
   resumeReadToken++;
   for (const field of PROFILE_FIELDS) {
     const el = $(field);

@@ -553,6 +553,51 @@
     }
     .app-meta a { color: #2563eb; }
 
+    /* The editable values of a remembered widget.
+       These carry the .app-meta class for their type size and colour, but they
+       must NOT inherit its single-line truncation: with `overflow: hidden` and
+       `white-space: nowrap` the caption and its input share one unbounded line,
+       so the input is pushed past the clipped edge and is never drawn at all —
+       the row renders as "QUESTION = …" and the value looks missing. One value
+       per line, wrapping, and no clipping. */
+    .app-meta.widget-values {
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
+      margin-top: 4px;
+    }
+    .widget-override {
+      margin-top: 6px;
+      color: #92400e;
+      font-size: 12px;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    .widget-value {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 3px 0 0;
+      font-size: 11px;
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+      color: #6b7280;
+    }
+    .widget-value > span { flex: 0 0 auto; }
+    .widget-value input {
+      flex: 1 1 auto;
+      min-width: 60px;
+      width: auto;
+      padding: 4px 7px;
+      font-size: 11px;
+    }
+    .widget-value input:disabled {
+      color: #9aa1ac;
+      background: #f8fafc;
+      cursor: not-allowed;
+    }
+
     /* The global `input, select { width: 100% }` above also matches the controls
        inside a row — a 100%-wide flex item stretches to the whole row and
        squeezes the name to zero width. Pin them explicitly. */

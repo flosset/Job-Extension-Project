@@ -100,11 +100,16 @@
       return out.length >= 40;
     };
 
-    // Text / select / contenteditable controls we could not fill.
+    // Text / select / contenteditable controls we could not answer.
     for (const el of pool.filter(JA.isFillable)) {
       if (out.length >= 40) break;
-      if (used.has(el)) continue;
       if (JA.isComboboxInput && JA.isComboboxInput(el)) continue; // no false noise
+      // A field that is EMPTY now is reported whether or not we claimed it.
+      // Skipping everything in `used` (as this used to) hid the one case that
+      // matters most: a field we filled and then LOST — a framework re-render,
+      // a portal quirk, or our own validation nudge. It was skipped by `used`
+      // and never reached the isFilled check, so the popup said "nothing left"
+      // while the form would submit that field blank.
       if (JA.isFilled(el)) continue;
       if (push(describeField(el), JA.isRequiredField(el), el)) break;
     }
@@ -116,6 +121,22 @@
         if (group.some((r) => used.has(r) || r.checked)) continue;
         if (!groupVisible(group)) continue;
         if (push(describeRadioGroup(group), groupRequired(group), group[0])) {
+          break;
+        }
+      }
+    }
+
+    // Button-based Yes/No questions (Ashby's "...-yesno" widgets): one entry
+    // per QUESTION, reported by its readable anchor text. Without this they are
+    // invisible to the report — and therefore to the learner, which only watches
+    // what the report hands it.
+    if (JA.yesNoPairs && out.length < 40) {
+      for (const pair of JA.yesNoPairs()) {
+        if (out.length >= 40) break;
+        if (used.has(pair.buttons[0])) continue;
+        if (JA.yesNoAnswer && JA.yesNoAnswer(pair)) continue; // already answered
+        if (!groupVisible(pair.buttons)) continue;
+        if (push(pair.question, JA.isRequiredField(pair.buttons[0]), pair.buttons[0])) {
           break;
         }
       }

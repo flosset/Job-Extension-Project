@@ -1,4 +1,4 @@
-﻿// combobox.js â€” drives custom (react-select style) dropdowns, which modern
+// combobox.js â€” drives custom (react-select style) dropdowns, which modern
 // ATS forms (Greenhouse, Workday, â€¦) use instead of <select>. Opens the
 // control, hovers the matching option, commits with several fallback
 // strategies, then closes the menu.

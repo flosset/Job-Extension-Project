@@ -92,6 +92,7 @@ var JOB_AUTOFILL_SHARED = {
     "content/controls/combobox.js",
     "content/controls/dates.js",
     "content/controls/radios.js",
+    "content/controls/button-yesno.js",
     "content/controls/phone.js",
     "content/controls/files.js",
     "content/page/page-info.js",
@@ -149,6 +150,68 @@ var JOB_AUTOFILL_SHARED = {
       if (key === wanted || this.phraseIn(key, wanted)) return true;
     }
     return false;
+  },
+
+  /**
+   * Which profile field, if any, answers the same question as this widget?
+   *
+   * A widget always WINS over the profile: widgets replay first and claim their
+   * fields, so nothing downstream may touch them. That is deliberate — a widget
+   * is something the user explicitly taught us, which is more specific than a
+   * generic label match. But it is also silent, and it means one answer can live
+   * in two places: change the profile and the widget keeps answering with the
+   * old value.
+   *
+   * This reports the overlap so the UI can say so out loud instead of letting
+   * the user discover it by being answered wrongly.
+   *
+   * Only a Yes/No profile field can overlap, because only those are matched
+   * against a question's wording (see JA.RADIO_KEYWORDS in the content scripts).
+   * A widget for a referee's email overlaps nothing.
+   */
+  profileKeyForWidget: function (recipe, profile) {
+    if (!recipe || !profile || typeof profile !== "object") return "";
+    // The learner removes stop words from anchors. Its fingerprint retains
+    // the question's wording, so prefer that when identifying the profile key.
+    const anchor = this.keyOf(recipe.fingerprint || (recipe.anchor || [])[0] || "");
+    if (!anchor) return "";
+    // Profile-bound cells read fresh values; only literals can override them.
+    if (!(recipe.rows || []).some(row => Object.values(row || {}).some(
+      cell => cell && cell.source === "literal" && String(cell.value || "").trim()
+    ))) return "";
+
+    // The same wording the fill matches a profile key against. Kept here rather
+    // than in the content scripts because this runs in the UI, where those
+    // scripts are not loaded — and it must agree with what actually gets
+    // written, so the phrases are copied from JA.RADIO_KEYWORDS verbatim.
+    const YESNO_PROFILE_KEYS = {
+      workAuthorized: [
+        "legally authorized to work",
+        "authorized to work",
+        "work authorization",
+        "eligible to work",
+        "right to work"
+      ],
+      sponsorship: [
+        "require sponsorship",
+        "need sponsorship",
+        "visa sponsorship",
+        "require a visa",
+        "now or in the future require sponsorship"
+      ]
+    };
+
+    for (const candidate of Object.keys(YESNO_PROFILE_KEYS)) {
+      const value = profile[candidate];
+      if (typeof value !== "string" || !value.trim()) continue;
+      for (const phrase of YESNO_PROFILE_KEYS[candidate]) {
+        // The widget answers THIS question, so the question's own wording must
+        // appear in it. Comparing the widget against itself would match always.
+        const key = this.keyOf(phrase);
+        if (key && (key === anchor || this.phraseIn(key, anchor))) return candidate;
+      }
+    }
+    return "";
   },
 
   /** A short id that is unique enough for a local list. */

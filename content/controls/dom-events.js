@@ -4,11 +4,23 @@
   "use strict";
   const JA = (window.__JobAutofill = window.__JobAutofill || {});
 
-  /** Fire the events that framework-driven portals listen for. */
+  /**
+   * Fire the events that framework-driven portals listen for.
+   *
+   * `input` is the one that matters: React reads e.target.value in its synthetic
+   * onChange and copies it into state. `change` follows for the older handlers.
+   *
+   * Deliberately NO `blur`. A real user does not blur a field the instant it is
+   * filled, and controlled forms (Ashby/react-hook-form) run their blur
+   * validation against state that has not re-rendered yet — so the field is
+   * marked "required entry missing" while the text sits visibly in the DOM. It
+   * also tripped our own learner, whose capture-phase blur listener
+   * (content/learning/answers.js) would treat a scripted fill as the user
+   * typing. If a widget genuinely needs focus moved on, the caller does it.
+   */
   JA.dispatchFormEvents = function (el) {
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
-    el.dispatchEvent(new Event("blur", { bubbles: true }));
   };
 
   /** Shared mouse-event options. */

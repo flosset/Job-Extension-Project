@@ -85,12 +85,38 @@
         : HTMLInputElement.prototype;
 
     const descriptor = Object.getOwnPropertyDescriptor(proto, "value");
-    if (descriptor && typeof descriptor.set === "function") {
-      descriptor.set.call(el, adapted);
-    } else {
-      el.value = adapted;
-    }
+    const setValue =
+      descriptor && typeof descriptor.set === "function"
+        ? (v) => descriptor.set.call(el, v)
+        : (v) => {
+            el.value = v;
+          };
+
+    setValue(adapted);
     JA.dispatchFormEvents(el);
+
+    // A controlled field can clobber our write during the re-render the input
+    // event scheduled: React re-renders from its OWN state, and if its onChange
+    // has not committed yet it writes back the old (empty) value. Left alone,
+    // the DOM then shows empty — or, worse, shows our text while React's state
+    // is empty, which is what makes a form claim "required entry missing" for a
+    // field the user can see filled.
+    //
+    // Re-check after the render has had a chance to land and re-assert. Bounded
+    // to one retry so a widget that always resets cannot spin.
+    //
+    // Deliberately NO el.focus() to 'make the component notice': focusing a
+    // field BLURS the previously focused one, which fires the very blur event
+    // we removed from dispatchFormEvents — on the field we just filled. The
+    // re-assert below is what actually settles the value.
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => {
+        if (el.value !== adapted) {
+          setValue(adapted);
+          JA.dispatchFormEvents(el);
+        }
+      });
+    }
   };
 
   /** Rich-text blocks have no .value — write textContent instead. */

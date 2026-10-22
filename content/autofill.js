@@ -185,6 +185,14 @@
       filled += JA.fillSnippetRadios(profile, used);
     }
 
+    // Yes/No questions rendered as BUTTON pairs rather than radios (Ashby's
+    // "...input-yesno" widgets). Runs after the radio passes because it is the
+    // rarer shape, and it refuses any pair whose options do not agree with the
+    // stored answer — an unanswered question beats a wrong one.
+    if (JA.fillYesNoPairs) {
+      filled += JA.fillYesNoPairs(profile, used, (profile && profile.customSnippets) || []);
+    }
+
     // User-defined fuzzy key/value snippets — feature 4.
     filled += fillSnippets(profile, pool, used);
 
@@ -239,6 +247,7 @@
       timer = setTimeout(() => settle(fillEverything(profile, used)), timeoutMs);
     });
   }
+
   async function run() {
     let profile;
     try {

@@ -115,6 +115,7 @@ async function renderWidgetOffer() {
       where.textContent = candidate.host;
       row.appendChild(name);
       row.appendChild(where);
+      appendWidgetOverride(row, candidate);
       rows.appendChild(row);
     }
   }
@@ -196,6 +197,17 @@ async function dismissAllWidgets() {
 }
 
 /** The saved list, on the profile page: what it is, when it was last used. */
+function appendWidgetOverride(container, recipe) {
+  const key = JOB_AUTOFILL_SHARED.profileKeyForWidget(recipe, storedProfile);
+  if (!key) return;
+  const note = document.createElement("div");
+  note.className = "widget-override";
+  const label = key === "workAuthorized" ? "work authorization" : "sponsorship";
+  note.textContent = "Overrides your profile's " + label +
+    " answer. This widget's saved value takes priority when filling.";
+  container.appendChild(note);
+}
+
 function renderRecipes() {
   const container = $("recipeRows");
   if (!container) return;
@@ -238,6 +250,57 @@ function renderRecipes() {
       (recipe.lastUsedAt ? ` · last ${when}` : " · not used yet");
     main.appendChild(meta);
 
+    // The VALUES this widget writes, editable in place.
+    //
+    // A widget stores literal values, so a widget captured last year keeps
+    // answering with last year's answer — "authorized to work: Yes" survives a
+    // change in status, and a referee's email goes stale. Before this, the only
+    // recourse was to forget the whole widget and answer the form by hand again,
+    // which is a bad trade for changing one word. Free text rather than a
+    // dropdown: it works for every value (an answer, an email, a phone number),
+    // with no need to know which field is boolean.
+    const values = document.createElement("div");
+    values.className = "app-meta widget-values";
+    const row0 = (recipe.rows || [])[0] || {};
+    for (const key of Object.keys(recipe.fields || {})) {
+      const cell = row0[key];
+      const line = document.createElement("label");
+      line.className = "widget-value";
+
+      const caption = document.createElement("span");
+      // The field's own keywords are the best human label we stored.
+      caption.textContent = (recipe.fields[key] || []).join(" / ") + " = ";
+      line.appendChild(caption);
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "app-company";
+      // A field with NO value in row 0 is one this widget does not write yet;
+      // show it as empty rather than pretending it has one.
+      input.value = cell && cell.source === "literal" ? String(cell.value || "") : "";
+      input.placeholder = cell && cell.source === "profile" ? `profile: ${cell.key}` : "";
+      input.disabled = !!(cell && cell.source === "profile");
+      input.title = input.disabled
+        ? "This value comes from your profile, so it is read fresh each time."
+        : "What this widget answers with — edit freely";
+      input.addEventListener("change", () =>
+        editRecipeValue(recipe.id, key, input.value)
+      );
+      line.appendChild(input);
+      values.appendChild(line);
+    }
+    if (values.childNodes.length > 0) main.appendChild(values);
+
+    // Say it out loud when the profile also answers this question.
+    //
+    // A widget always WINS: it replays first and claims its fields, so the
+    // profile pass never touches it. That is deliberate (your taught widget is
+    // more specific than a generic label match) but it is silent, and it means
+    // the same answer now lives in two places. Without this note the user edits
+    // their profile, sees the widget keep answering the old value, and has no
+    // way to know why.
+    appendWidgetOverride(main, recipe);
+
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "snip-del";
@@ -249,6 +312,36 @@ function renderRecipes() {
     row.appendChild(remove);
     container.appendChild(row);
   }
+}
+
+/**
+ * Change one literal value a saved widget writes.
+ *
+ * Rewrites row 0's cell for that field, and ONLY that cell: the row structure,
+ * the anchors and the other fields are untouched, so a correction cannot turn a
+ * working widget into a differently-shaped one. A field currently bound to the
+ * profile is left alone (its input is disabled) — that value is read fresh on
+ * every run, so editing it here would be a lie.
+ */
+async function editRecipeValue(id, fieldKey, value) {
+  const clean = String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+  if (!clean) return; // an empty value is a deletion, which we do not do here
+
+  recipeState = JOB_AUTOFILL_SHARED.sanitizeRecipes({
+    items: recipeState.items.map((recipe) => {
+      if (recipe.id !== id) return recipe;
+      const rows = (recipe.rows || []).slice();
+      const row0 = Object.assign({}, rows[0] || {});
+      const cell = row0[fieldKey];
+      if (cell && cell.source === "profile") return recipe; // not ours to edit
+      row0[fieldKey] = { source: "literal", value: clean };
+      rows[0] = row0;
+      return Object.assign({}, recipe, { rows });
+    })
+  });
+  await storeRecipes();
+  renderRecipes();
+  setStatus("Widget updated.", "ok");
 }
 
 /** Rename a saved widget. */

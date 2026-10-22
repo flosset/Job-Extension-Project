@@ -259,6 +259,108 @@
     };
   }
 
+  /**
+   * Build a candidate for a BUTTON-based Yes/No question.
+   *
+   * Why this exists separately from buildCandidate: a Yes/No pair is ONE field,
+   * and the normal route refuses anything under two ("one field is a field, two
+   * are a widget") — precisely so we never offer to remember every stray input.
+   * That threshold is right, so it is left alone. A button pair earns its own
+   * route instead, and only because it is ANCHORED: a readable question plus
+   * exactly two polarity-opposite buttons. A lone "Submit Application" cannot
+   * satisfy that, so this can never offer to learn a submit control.
+   *
+   * The value is stored LITERALLY, by design: a widget is a captured structure,
+   * not a pointer into the profile. A stored "Yes" is the user's explicit answer
+   * for this host, and the options UI lets them edit it when it goes stale.
+   *
+   * ponytail: host-scoped, one literal value, no profile binding. If a widget
+   * ever needs to track a profile field, upgrade profileKeyFor to accept a
+   * button pair and set source:"profile" here.
+   */
+  function buildYesNoCandidate(pair) {
+    if (!pair || !pair.question) return null;
+    if (!pair.buttons || pair.buttons.length !== 2) return null;
+
+    const answer = JA.yesNoAnswer ? JA.yesNoAnswer(pair) : "";
+    if (!answer) return null; // nothing chosen yet — nothing to learn
+
+    // Refuse the questions this learner must never remember as data.
+    const question = S.clean(pair.question);
+    if (!question) return null;
+    if (NEVER_LEARN.test(S.normalize(question))) return { skipped: question };
+
+    const keyword = S.keyOf(question);
+    if (!keyword) return null;
+
+    // The anchor must be a CONTIGUOUS phrase from the question, and short.
+    //
+    // Two constraints, and they pull in opposite directions:
+    //   * sanitizeRecipes clips every keyword at 40 characters
+    //     (shared/widgets.js cleanKeywords), so the whole question will not fit;
+    //   * matchesKeywords tests each anchor as a WHOLE PHRASE with word
+    //     boundaries, so arbitrary tokens joined together never match — the
+    //     anchor "legally authorized work" does NOT match "legally authorized
+    //     TO work".
+    // A sliding window of consecutive words satisfies both: pick the run of up
+    // to 4 words that fits in 40 characters and carries the most signal.
+    const stop = new Set([
+      "are", "you", "your", "the", "a", "an", "is", "do", "does", "did", "will",
+      "would", "can", "could", "to", "of", "for", "in", "on", "at", "and", "or",
+      "currently", "please", "this", "that"
+    ]);
+    const words = keyword.split(" ").filter(Boolean);
+    const runs = [];
+    for (let start = 0; start < words.length; start++) {
+      for (let len = 4; len >= 2; len--) {
+        const slice = words.slice(start, start + len);
+        const run = slice.join(" ");
+        if (run.length > 40) continue;
+        // Skip a window made entirely of filler, and one that both STARTS and
+        // ends on filler — "you currently legally authorized" is a phrase no
+        // user would recognise, and its ends carry no signal.
+        if (!slice.some((w) => !stop.has(w) && w.length > 3)) continue;
+        if (stop.has(slice[0]) && stop.has(slice[slice.length - 1])) continue;
+        // Prefer the window with the most signal words, then the longest.
+        const signal = slice.filter((w) => !stop.has(w) && w.length > 3).length;
+        runs.push({ run, signal, len: run.length });
+      }
+    }
+    runs.sort((a, b) => b.signal - a.signal || b.len - a.len);
+    let anchor = runs.length ? runs[0].run : "";
+    // Fall back to a single distinctive word, then to whatever fits.
+    if (!anchor) {
+      const best = words.filter((w) => !stop.has(w)).sort((a, b) => b.length - a.length)[0];
+      anchor = (best || keyword).slice(0, 40);
+    }
+    if (!anchor) return null;
+
+    const slug = slugFor(question, new Set());
+    if (!slug) return null;
+
+    const heading = S.headingFor(pair.container.parentElement || pair.container);
+
+    return {
+      candidate: {
+        host: hostOf(),
+        name: heading || question.slice(0, 60),
+        fingerprint: keyword.slice(0, 120),
+        anchor: [anchor],
+        // The two option labels confirm this is still the same pair.
+        confirm: pair.buttons
+          .map((b) => S.keyOf(b.textContent || ""))
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((word) => [word]),
+        addButton: [],
+        dateFormat: "none",
+        fields: { [slug]: [anchor] },
+        rows: [{ [slug]: { source: "literal", value: answer } }],
+        at: Date.now()
+      }
+    };
+  }
+
   /** A widget we have already been taught for this host+anchor. */
   function alreadyKnown(candidate) {
     const anchor = candidate.anchor[0];
@@ -324,6 +426,25 @@
     flushTimer = setTimeout(flush, FLUSH_MS);
   }
 
+  /**
+   * The user pressed a button. If it belongs to a Yes/No pair, that is an
+   * answer worth offering to remember — so schedule our normal flush.
+   *
+   * Deferred by a tick because the widget's own click handler (which sets
+   * aria-pressed) runs after this capture-phase listener; reading the answer
+   * immediately would see the state before the click.
+   */
+  function onButtonAnswer(event) {
+    if (cleared) return;
+    const el = event && event.target;
+    if (!el || !JA.yesNoPairFor) return;
+    if (mine.has(el)) return; // the fill pressed this, not you
+    if (!JA.yesNoPairFor(el)) return; // not an anchored pair
+    setTimeout(() => {
+      if (!cleared) scheduleFlush();
+    }, 0);
+  }
+
   /** One widget offer at a time, and never the same one twice in a page load. */
   async function flush() {
     flushTimer = null;
@@ -356,6 +477,28 @@
       await noteSkipped(skippedLabel);
       return;
     }
+
+    // Button-based Yes/No questions take their own route: they are ONE field, so
+    // the two-field rule above would refuse them, and their click is not a
+    // `change` event so they never enter `regions`. Offered only for a pair the
+    // user actually answered, and never for a lone action button.
+    if (!best && JA.yesNoPairs) {
+      for (const pair of JA.yesNoPairs()) {
+        const answer = JA.yesNoAnswer ? JA.yesNoAnswer(pair) : "";
+        if (!answer) continue;                       // nothing chosen yet
+        if (pair.buttons.some((b) => mine.has(b))) continue; // we filled it
+        const built = buildYesNoCandidate(pair);
+        if (built && built.skipped) {
+          await noteSkipped(built.skipped);
+          return;
+        }
+        if (built && built.candidate) {
+          best = built.candidate;
+          break;
+        }
+      }
+    }
+
     if (!best) return;
     if (proposed.has(best.fingerprint) || alreadyKnown(best)) return;
     proposed.add(best.fingerprint);
@@ -387,6 +530,11 @@
 
     document.addEventListener("change", onCommitted, true);
     document.addEventListener("blur", onCommitted, true);
+    // A Yes/No pair is answered by a CLICK, which fires no change/blur — so
+    // without this the learner would never see the user answer one. Capture
+    // phase, and the read is deferred a tick so the widget's own handler has
+    // already written `aria-pressed` by the time we look.
+    document.addEventListener("click", onButtonAnswer, true);
     watch.update = (nextMine) => {
       mine = asSet(nextMine);
       loadKnown(); // a widget saved since the last fill must be recognised
@@ -460,6 +608,7 @@
     labelFor: S.labelFor,
     profileKeyFor,
     buildCandidate,
+    buildYesNoCandidate,
     entryFor: (row, source) => JA.recipeInternals.entryFor(row, source)
   };
 

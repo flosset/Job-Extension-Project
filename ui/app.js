@@ -94,6 +94,8 @@ document.addEventListener("DOMContentLoaded", () => {
     loadWidgets()
   ]).then(() => {
     refreshProfileSelect();
+    renderRecipes();
+    renderWidgetOffer();
     refreshCoverLetter();
     renderApplications();
     // The popup is a fresh document on every open, so rebuild the "fields left

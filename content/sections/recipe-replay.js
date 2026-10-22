@@ -82,6 +82,23 @@
     let filled = 0;
     const applied = [];
 
+    // Replay button-based Yes/No widgets FIRST, through their own engine.
+    // They cannot go through fillSectionBlocks at all: that engine requires a
+    // REPEATED block (>=2 same-shaped siblings), and a Yes/No question is a
+    // single pair. sectionBlocks() therefore returns [] for them and the recipe
+    // would be skipped in silence — learned, saved, and never replayed.
+    if (JA.replayYesNoWidget) {
+      try {
+        const yn = JA.replayYesNoWidget(recipes, host, used);
+        if (yn && yn.filled > 0) {
+          filled += yn.filled;
+          (yn.applied || []).forEach((k) => applied.push(k));
+        }
+      } catch (err) {
+        /* a stubborn pair must not abort the rest */
+      }
+    }
+
     for (const recipe of recipes) {
       if (recipe.host !== host) continue;
       const section = {
