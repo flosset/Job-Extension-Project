@@ -45,8 +45,14 @@ function bankOnPage() {
 function renderLearned() {
   const section = $("learnedSection");
   if (!section) return;
-  const candidates = learnedState.candidates || [];
-  section.hidden = candidates.length === 0;
+  const pending = learnedState.candidates || [];
+  const candidates = pending.filter((candidate) => !widgetCoversAnswer(candidate));
+  const deferred = pending.length - candidates.length;
+  section.hidden = pending.length === 0;
+  for (const id of ["saveLearnedAllBtn", "dismissLearnedAllBtn"]) {
+    const button = $(id);
+    if (button) button.disabled = candidates.length === 0;
+  }
 
   const rows = $("learnedRows");
   if (rows) {
@@ -60,6 +66,10 @@ function renderLearned() {
     note.textContent =
       "Answers you typed into the fields this extension left for you. " +
       "Nothing is saved until you click Save; they stay in this browser." +
+      (deferred
+        ? ` ${deferred} answer suggestion${deferred === 1 ? " is" : "s are"} already covered by a matching widget. ` +
+          "Dismiss the widget suggestion or forget the saved widget to review those answers separately."
+        : "") +
       (skipped
         ? ` ${skipped} question${skipped === 1 ? "" : "s"} ${
             skipped === 1 ? "was" : "were"
@@ -75,6 +85,7 @@ function addLearnedRow(candidate) {
 
   const row = document.createElement("div");
   row.className = "snip-row learn-row";
+  row.learnedCandidate = candidate;
 
   const keyInput = document.createElement("input");
   keyInput.type = "text";
@@ -173,10 +184,12 @@ async function saveAllLearned() {
     : [];
 
   let added = 0;
+  const handled = new Set();
   for (const row of rows) {
     const key = (row.querySelector(".snip-key").value || "").trim();
     const value = (row.querySelector(".snip-value").value || "").trim();
     if (!key || !value) continue;
+    handled.add(row.learnedCandidate);
     if (JOB_AUTOFILL_SHARED.bankCovers(bank, key)) continue; // already covered
     bank.push({ key, value });
     added++;
@@ -190,7 +203,10 @@ async function saveAllLearned() {
   profile.customSnippets = bank;
   await persist(profile);
   if ($("snippetRows")) renderSnippets(bank);
-  learnedState = { candidates: [], skipped: learnedState.skipped || [] };
+  learnedState = {
+    candidates: learnedState.candidates.filter((candidate) => !handled.has(candidate)),
+    skipped: learnedState.skipped || []
+  };
   await storeLearned();
   renderLearned();
   setStatus(`Saved ${added} answer${added === 1 ? "" : "s"} to your answer bank.`, "ok");
@@ -199,7 +215,10 @@ async function saveAllLearned() {
 /** Decline every candidate at once. */
 async function dismissAllLearned() {
   if ((learnedState.candidates || []).length === 0) return;
-  learnedState = { candidates: [], skipped: learnedState.skipped || [] };
+  learnedState = {
+    candidates: learnedState.candidates.filter(widgetCoversAnswer),
+    skipped: learnedState.skipped || []
+  };
   await storeLearned();
   renderLearned();
   setStatus("Nothing saved.", "");

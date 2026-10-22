@@ -21,6 +21,22 @@ function widgetKey(widget) {
   return (widget.host || "") + "|" + anchor;
 }
 
+function widgetCoversAnswer(candidate) {
+  if (!candidate.site) return false;
+  const question = JOB_AUTOFILL_SHARED.keyOf(candidate.question);
+  const section = $("widgetSection");
+  const pending = (section && section.widgetList) || [];
+  // shortcut: only exact labels and literal values qualify; profile bindings need separate comparison.
+  return pending.concat(recipeState.items).some((widget) =>
+    widget.host === candidate.site && Object.keys(widget.fields).some((key) =>
+      widget.fields[key].some((label) => JOB_AUTOFILL_SHARED.keyOf(label) === question) &&
+      widget.rows.length > 0 && widget.rows.every((row) =>
+        row[key] && row[key].source === "literal" && row[key].value === candidate.value
+      )
+    )
+  );
+}
+
 /** The host of the tab the popup is open on ("" on the options page). */
 async function pageHost() {
   try {
@@ -193,6 +209,7 @@ async function dismissAllWidgets() {
   };
   await storeCandidates();
   await renderWidgetOffer();
+  renderLearned();
   setStatus("Not saved.", "");
 }
 
@@ -209,6 +226,7 @@ function appendWidgetOverride(container, recipe) {
 }
 
 function renderRecipes() {
+  renderLearned();
   const container = $("recipeRows");
   if (!container) return;
   container.innerHTML = "";
