@@ -59,6 +59,28 @@ See [Architecture](docs/architecture.md) for component diagrams, fill sequences,
   click, and the profile page lists what it knows (with when each was last used)
   so a stale one can be deleted.
 
+## Teach a field or section
+
+Open the extension on an application form and choose **Teach a field / section**.
+Click fields to include or exclude them, or focus a field and press **F8**.
+**Add nearby section** proposes neighboring fields; use **Remove** to adjust the
+selection. A section does not need repeated rows to be taught.
+
+Review each field's value source: keep a literal answer, or explicitly select a
+profile field whose current value is previewed. Reuse defaults to **only this
+application page**. Whole-site reuse is optional and can cover other employers
+on the same job board. Nothing is saved until **Save taught fields** is pressed;
+Cancel or Escape discards the selection. Teaching itself does not fill the form.
+
+Taught mappings appear in the profile editor's saved widgets and are included in
+backup, restore, and deletion. On Fill, labels, section context, and control types
+must match uniquely before replay starts. Changed or ambiguous mappings are
+skipped and reported; answers already on the page are preserved. This route
+supports labeled text inputs, textareas, native single selects, and supported
+single-value React dropdowns. Files, action buttons, consent, demographic and
+identity fields are excluded. Literal answers are limited to one line and 500
+characters; use the answer bank for longer text.
+
 ## How the job name is detected
 
 The **date is always exact** — it is when you pressed Fill. The **name** comes
@@ -117,8 +139,9 @@ A job the page *did* name is never asked about.
 
 Everything lives in `chrome.storage.local`. The extension makes no outbound
 requests and does nothing on a page you did not ask for: the service worker only
-runs a fill when you press **Fill Application**, press **Alt+Shift+F**, or the
-field list sends a single "scroll to this" message for a tab you just filled.
+runs a fill when you press **Fill Application** or **Alt+Shift+F**. The field
+list can highlight a field on a tab you just filled. **Teach a field / section**
+opens a selector only when requested and saves only the fields you confirm.
 
 The learned answers below the answer bank are **candidates**, not settings. They
 sit in their own storage key, are shown with a Save button each, and only become

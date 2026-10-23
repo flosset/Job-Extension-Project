@@ -28,7 +28,7 @@ function widgetCoversAnswer(candidate) {
   const pending = (section && section.widgetList) || [];
   // shortcut: only exact labels and literal values qualify; profile bindings need separate comparison.
   return pending.concat(recipeState.items).some((widget) =>
-    widget.host === candidate.site && Object.keys(widget.fields).some((key) =>
+    !widget.taught && widget.host === candidate.site && Object.keys(widget.fields).some((key) =>
       widget.fields[key].some((label) => JOB_AUTOFILL_SHARED.keyOf(label) === question) &&
       widget.rows.length > 0 && widget.rows.every((row) =>
         row[key] && row[key].source === "literal" && row[key].value === candidate.value
@@ -266,6 +266,9 @@ function renderRecipes() {
       ` · ${Object.keys(recipe.fields || {}).length} fields` +
       ` · used ${recipe.uses || 0}×` +
       (recipe.lastUsedAt ? ` · last ${when}` : " · not used yet");
+    if (recipe.taught) meta.textContent += recipe.taught.scope === "page"
+      ? " · taught for " + recipe.taught.path
+      : " · taught for this site";
     main.appendChild(meta);
 
     // The VALUES this widget writes, editable in place.
@@ -287,7 +290,7 @@ function renderRecipes() {
 
       const caption = document.createElement("span");
       // The field's own keywords are the best human label we stored.
-      caption.textContent = (recipe.fields[key] || []).join(" / ") + " = ";
+      caption.textContent = (recipe.taught ? recipe.taught.controls[key].label : (recipe.fields[key] || []).join(" / ")) + " = ";
       line.appendChild(caption);
 
       const input = document.createElement("input");

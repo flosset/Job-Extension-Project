@@ -41,6 +41,27 @@ async function injectIntoAllFrames(tabId, approveDeletion) {
 /** The tab we last filled, so the field list can message it. */
 let activeTabId = null;
 
+async function teachActiveTab() {
+  const button = $("teachBtn");
+  if (button) button.disabled = true;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || typeof tab.id !== "number") throw new Error("missing_tab");
+    const target = { tabId: tab.id, allFrames: true };
+    await chrome.scripting.executeScript({ target, files: CONTENT_SCRIPTS.filter((file) => file !== "content/autofill.js") });
+    const results = await chrome.scripting.executeScript({ target, func: async () => {
+      const JA = window.__JobAutofill;
+      return !!(JA && JA.startTeaching && await JA.startTeaching());
+    } });
+    if (results.some((frame) => frame.result === true)) window.close();
+    else setStatus("No supported labeled fields found. Open the application form and try again.", "warn");
+  } catch (err) {
+    setStatus("Could not open teaching on this page. Check site access and try again.", "warn");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 /** Inject the fill content script into the active tab and all of its frames. */
 async function fillActiveTab() {
   // A destructive run is confirmed every single time — never silently.

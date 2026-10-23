@@ -196,6 +196,10 @@
    */
   JA.chooseComboByKeywords = async function (keywords, value, used, root) {
     const control = JA.comboControlForKeywords(keywords, used, root);
+    return await JA.chooseComboControl(control, value, used);
+  };
+
+  JA.chooseComboControl = async function (control, value, used) {
     if (!control) return false;
 
     // Set when the value had to be TYPED to make the widget render its options.

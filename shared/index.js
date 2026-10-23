@@ -101,6 +101,7 @@ var JOB_AUTOFILL_SHARED = {
     "content/learning/answers.js",
     "content/learning/widget-shape.js",
     "content/learning/widgets.js",
+    "content/learning/teach.js",
     "content/autofill.js"
   ],
 

@@ -81,6 +81,7 @@
     const host = JA.pageHost();
     let filled = 0;
     const applied = [];
+    const issues = [];
 
     // Replay button-based Yes/No widgets FIRST, through their own engine.
     // They cannot go through fillSectionBlocks at all: that engine requires a
@@ -101,6 +102,17 @@
 
     for (const recipe of recipes) {
       if (recipe.host !== host) continue;
+      if (recipe.taught) {
+        try {
+          const part = await JA.replayTaught(recipe, source, used);
+          filled += part.filled;
+          if (part.filled) applied.push(recipeKey(recipe));
+          if (part.issue) issues.push(recipe.name + " (" + part.issue + ")");
+        } catch (err) {
+          issues.push(recipe.name + " (could not verify the taught fields)");
+        }
+        continue;
+      }
       const section = {
         anchor: recipe.anchor,
         confirm: recipe.confirm,
@@ -132,7 +144,7 @@
     }
 
     if (applied.length) bumpUsage(applied);
-    return { filled, applied };
+    return { filled, applied, issues };
   };
 
   // The row -> values resolver, shared with learning/widgets.js so the suite's

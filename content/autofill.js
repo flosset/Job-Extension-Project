@@ -279,10 +279,12 @@
     const used = new Set();
     let filled = 0;
     let widgets = 0;
+    let sectionIssues = [];
     if (JA.fillLearnedWidgets) {
       try {
         const applied = await JA.fillLearnedWidgets(profile, used);
         widgets = (applied && applied.filled) || 0;
+        sectionIssues = (applied && applied.issues) || [];
         filled += widgets;
       } catch (err) {
         /* a rotten recipe must never break the rest of the fill */
@@ -307,7 +309,6 @@
     // added on purpose are indistinguishable to us.
     let removed = 0;
     let surplus = 0;
-    let sectionIssues = [];
     if (JA.fillRepeatableSections) {
       try {
         const sections = await JA.fillRepeatableSections(profile, used, {
@@ -319,7 +320,7 @@
         // Sections the fill could not address at all, so the popup can say so
         // instead of leaving the user staring at an empty block they cannot
         // explain.
-        sectionIssues = sections.unfilled || [];
+        sectionIssues = sectionIssues.concat(sections.unfilled || []);
       } catch (err) {
         /* a stubborn section must not abort the rest */
       }

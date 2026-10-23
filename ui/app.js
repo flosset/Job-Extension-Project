@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // nothing when it is clicked.
   on("saveBtn", "click", saveProfile);
   on("fillBtn", "click", fillActiveTab);
+  on("teachBtn", "click", teachActiveTab);
   on("editProfileBtn", "click", openOptionsPage);
   on("grantBtn", "click", requestAnySiteAccess);
   on("exportBtn", "click", exportProfile);

@@ -2,6 +2,24 @@
 // pending candidates. Attaches to JOB_AUTOFILL_SHARED (created by
 // shared/index.js, which is loaded first).
 Object.assign(JOB_AUTOFILL_SHARED, {
+  teachLabelAllowed: function (label) {
+    return !!label && !/(gender|race|ethnicity|veteran|disabil|social security|\bssn\b|passport|national insurance|birth|password|consent|signature)/i.test(label);
+  },
+
+  cleanTaught: function (raw, fields) {
+    if (!raw || !["page", "site"].includes(raw.scope)) return null;
+    if (typeof raw.path !== "string" || raw.path.length > 2048 ||
+        (raw.scope === "page" && !raw.path.startsWith("/"))) return null;
+    const controls = {};
+    for (const key of Object.keys(fields)) {
+      const item = raw.controls && raw.controls[key];
+      if (!item || typeof item.label !== "string" || item.label.length > 120 ||
+          !this.teachLabelAllowed(item.label) || typeof item.context !== "string" ||
+          item.context.length > 600 || !["text", "email", "tel", "url", "number", "date", "month", "search", "textarea", "select", "combo"].includes(item.type)) return null;
+      controls[key] = { label: item.label, context: item.context, type: item.type };
+    }
+    return { scope: raw.scope, path: raw.scope === "page" ? raw.path : "", controls };
+  },
   // --- Remembered widgets ---------------------------------------------------
   // A recipe is DATA, replayed by the existing section engine. That engine
   // refuses to mutate anything it cannot verify, so a recipe only ever gets a
@@ -92,6 +110,10 @@ Object.assign(JOB_AUTOFILL_SHARED, {
       if (confirm.length >= 6) break;
     }
 
+    const taught = e.taught === undefined ? null : this.cleanTaught(e.taught, fields);
+    // A damaged taught mapping must never fall back to keyword-based replay.
+    if (e.taught !== undefined && (!taught || rows.length !== 1 ||
+        Object.keys(fields).some((key) => !rows[0][key]))) return null;
     return {
       host,
       name: this.cleanShortText(e.name, 60) || "Saved widget",
@@ -106,7 +128,8 @@ Object.assign(JOB_AUTOFILL_SHARED, {
           ? e.dateFormat
           : "none",
       fields,
-      rows
+      rows,
+      ...(taught ? { taught } : {})
     };
   },
 
