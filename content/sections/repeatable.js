@@ -71,34 +71,34 @@
     );
   }
 
-  /** Click the section's add button. Prefers "add another" over bare "add",
-   *  and prefers a button that sits AFTER the section's own blocks so each
-   *  section uses its own "Add Another". */
+  /** Grow only an identified section; generic add controls need a local owner. */
   JA.clickSectionAdd = function (section) {
-    const buttons = Array.from(
-      document.querySelectorAll('button, [role="button"], a, input[type="button"]')
-    ).filter((el) => !el.disabled && el.getAttribute("aria-disabled") !== "true");
-
-    const pick = (keywords) =>
-      buttons.filter((el) => JA.matchesKeywords(controlText(el), keywords));
-
     const blocks = JA.sectionBlocks(section);
     const last = blocks.length ? blocks[blocks.length - 1] : null;
-    const choose = (list) => {
-      if (!list.length) return null;
-      if (last) {
-        // DOCUMENT_POSITION_FOLLOWING (4): the button comes after the block.
-        const after = list.find((el) => last.compareDocumentPosition(el) & 4);
-        if (after) return after;
+    if (!last) return false;
+    const specific = (section.addButton || []).filter(word => !["add", "add another", "add more", "new"].includes(word));
+    for (let scope = last.parentElement; scope; scope = JA.parentOrHost(scope)) {
+      const buttons = JA.queryAll('button, [role="button"], a, input[type="button"]', scope)
+        .filter(el => JA.isVisible(el) && el.getAttribute("aria-disabled") !== "true");
+      let candidates = buttons.filter(el => JA.matchesKeywords(controlText(el), specific));
+      const adjacent = scope.nextElementSibling;
+      if (!candidates.length && adjacent && adjacent.matches('button,[role="button"],a,input[type="button"]') &&
+          JA.isVisible(adjacent) && JA.matchesKeywords(controlText(adjacent), section.addButton || [])) {
+        candidates = [adjacent];
       }
-      return list[0];
-    };
-
-    const button =
-      choose(pick(["add another"])) || choose(pick(section.addButton));
-    if (!button) return false;
-    JA.mouseClick(button);
-    return true;
+      if (!candidates.length && !scope.matches("html")) {
+        const foreignSection = JA.fieldPool(scope).some(field => !blocks.some(block => block.contains(field)) &&
+          Object.values(JA.SECTIONS || {}).some(other => other.anchor !== section.anchor &&
+            JA.matchesKeywords(JA.normalize(JA.getSignal(field)), other.anchor)));
+        if (!foreignSection) candidates = buttons.filter(el => {
+          const owner = el.closest('section,fieldset,[role="group"]');
+          return (!owner || owner.contains(last)) && JA.matchesKeywords(controlText(el), section.addButton || []);
+        });
+      }
+      if (candidates.length === 1) { JA.mouseClick(candidates[0]); return true; }
+      if (candidates.length > 1) return false;
+    }
+    return false;
   };
 
   /** Every confirmation dialog currently on the page. */

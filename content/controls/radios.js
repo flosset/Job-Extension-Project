@@ -44,8 +44,8 @@
     if (!JA.answerPolarity(value)) return null;
     const candidates = group.map((radio) => ({
       el: radio,
-      text: JA.normalize(JA.getSignal(radio)),
-      value: JA.normalize(radio.value)
+      text: JA.valueKey(JA.getSignal(radio)),
+      value: JA.valueKey(radio.value)
     }));
     return JA.pickPolaritySafe(candidates, value);
   };
@@ -117,11 +117,11 @@
 
       let radio = JA.radioOptionFor(group, value);
       if (!radio && !JA.answerPolarity(value)) {
-        const target = JA.normalize(value);
+        const target = JA.valueKey(value);
         radio =
           group.find((r) => {
-            const label = JA.normalize(JA.getSignal(r));
-            return label === target || JA.normalize(r.value) === target;
+            const label = JA.valueKey(JA.getSignal(r));
+            return label === target || JA.valueKey(r.value) === target;
           }) || null;
       }
       if (!radio) continue;

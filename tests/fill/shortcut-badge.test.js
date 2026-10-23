@@ -424,6 +424,25 @@ function loadWorker(store, control) {
   t("G: sums scan counts from every frame", embedded.scanned === 9);
   t("G: preserves actual frame replies", embedded.frames === 2);
 
+  // No popup listener exists: the worker must finish and persist a popup-started run itself.
+  const request = message => new Promise(resolve => worker.listeners.message(message, {}, resolve));
+  control.frames = 2;
+  const started = await request({ type: "JOB_AUTOFILL_START", tabId: 7 });
+  t("H: popup delegates its run to the worker", started.ok && !!started.id);
+  worker.listeners.message({ type: "JOB_AUTOFILL_RESULT", status: "ok", filled: 1,
+    scanned: 1, page: { company: "Example", role: "New role", url: "https://boards.example.com/new" }, unfilled: [] },
+    { tab: { id: 7 }, frameId: 0 });
+  worker.listeners.message({ type: "JOB_AUTOFILL_RESULT", status: "ok", filled: 2,
+    scanned: 3, unfilled: [{ label: "Required question", ref: "remaining", required: true }] },
+    { tab: { id: 7 }, frameId: 3 });
+  const popupRecord = await request({ type: "JOB_AUTOFILL_RECORD", id: started.id });
+  t("H: popup closure loses no application record", store.applications.items.some(item => item.role === "New role"));
+  t("H: popup closure loses no remaining-field record", popupRecord.results.unfilled[0].ref === "remaining");
+  t("H: worker sums all popup frames", popupRecord.results.filled === 3 && popupRecord.results.frames === 2);
+  t("H: the worker exposes matching cover-letter metadata", popupRecord.results.page.url === popupRecord.page.url);
+  t("H: content frames cannot start destructive fills", worker.listeners.message(
+    { type: "JOB_AUTOFILL_START", tabId: 7, approveDeletion: true }, { tab: { id: 7 } }, () => {}) === undefined);
+
   console.log(
     `\n${
       fail === 0 ? "SHORTCUT+BADGE E2E PASS" : "SHORTCUT+BADGE E2E FAIL"

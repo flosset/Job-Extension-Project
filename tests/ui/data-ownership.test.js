@@ -18,16 +18,19 @@ const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let savedObject = null;
+const storage = {};
 let removedKey = null;
 window.chrome = {
   storage: {
     local: {
-      get: async () => ({}),
+      get: async () => structuredClone(storage),
       set: async (obj) => {
         savedObject = obj;
+        Object.assign(storage, structuredClone(obj));
       },
       remove: async (key) => {
         removedKey = key;
+        key.forEach(k => delete storage[k]);
       }
     }
   },

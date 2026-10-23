@@ -100,8 +100,8 @@ async function pageForTab() {
   try {
     const runs = await readRuns();
     const record = runs[String(tab.id)];
-    const page = record && record.results && record.results.page;
-    if (page && (page.company || page.role)) return page;
+    const page = record && (record.page || (record.results && record.results.page));
+    if (JOB_AUTOFILL_SHARED.runMatchesTab(record, tab) && (page.company || page.role)) return page;
   } catch (err) {
     /* fall through to the coarse guess */
   }

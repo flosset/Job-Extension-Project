@@ -43,7 +43,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function openPopup(store, opts) {
   const options = opts || {};
   const sent = [];
-  const tabs = options.tabs || [{ id: 7 }];
+  const tabs = options.tabs || [{ id: 7, url: "https://jobs.example.com/7" }];
   const dom = new JSDOM(STRIP, { runScripts: "dangerously", pretendToBeVisual: true });
   const w = dom.window;
   w.confirm = () => true;
@@ -94,6 +94,7 @@ const items = (p) => Array.from(p.d.querySelectorAll("#unfilledList li"));
   await popup.t.fillActiveTab(); // records the tab we may message + starts the run
   popup.t.aggregate.add({
     type: "JOB_AUTOFILL_RESULT", status: "ok", filled: 3, frames: 1, iframes: 0, scanned: 9,
+    page: { url: "https://jobs.example.com/7" },
     unfilled: [
       { label: "City", required: true, ref: "ja-1" },
       { label: "State", required: false, ref: "ja-2" }
@@ -149,6 +150,7 @@ const items = (p) => Array.from(p.d.querySelectorAll("#unfilledList li"));
   // ---- C. only the tab you are actually on -------------------------------
   store[RUNS_KEY]["9"] = {
     tabId: 9,
+    page: { url: "https://jobs.example.com/9" },
     at: Date.now(),
     results: {
       unfilled: [{ label: "OtherTabField", required: false, ref: "ja-9" }],
@@ -156,7 +158,7 @@ const items = (p) => Array.from(p.d.querySelectorAll("#unfilledList li"));
       iframes: 0
     }
   };
-  const otherTab = openPopup(store, { tabs: [{ id: 9 }] });
+  const otherTab = openPopup(store, { tabs: [{ id: 9, url: "https://jobs.example.com/9" }] });
   await sleep(60);
   t("C: another tab's run is not shown on this one", !/OtherTabField/.test(listText(reopened)));
   t("C: ...but it is shown on its own tab", /OtherTabField/.test(listText(otherTab)), listText(otherTab));

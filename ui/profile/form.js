@@ -38,6 +38,7 @@ async function loadProfile() {
     if (replaceBox) replaceBox.checked = profile.replaceHistory === true;
     renderProfileSummary(profile);
     markClean();
+    formBaseline = readForm();
   } catch (err) {
     setStatus("⚠️ Could not read local storage.", "warn");
   }
@@ -48,6 +49,7 @@ async function loadProfile() {
 // it actually displays, so saving from one page can never wipe a section that
 // lives on the other.
 let storedProfile = {};
+let formBaseline = {};
 
 /**
  * The profile THIS page can see, merged over what is already stored.
@@ -109,27 +111,54 @@ function markClean() {
 async function persist(profile) {
   const epoch = editEpoch;
   const revision = editRevision;
-  const task = profileWrites.catch(() => {}).then(async () => {
-    if (deletingData || epoch !== editEpoch) return false;
-    const values = { [STORAGE_KEY]: profile };
-    if (typeof activeProfile === "function" && activeProfile()) {
-      activeProfile().profile = profile;
-      values[PROFILES_KEY] = profileState;
-    }
-    await chrome.storage.local.set(values);
-    return !deletingData && epoch === editEpoch;
-  });
+  const profileId = profileState.activeId;
+  const task = profileWrites.catch(() => {}).then(() => JOB_AUTOFILL_SHARED.withStorageLock(async () => {
+    if (deletingData || epoch !== editEpoch) return null;
+    const data = await chrome.storage.local.get([STORAGE_KEY, PROFILES_KEY]);
+    if (deletingData || epoch !== editEpoch) return null;
+    const state = JOB_AUTOFILL_SHARED.sanitizeProfiles(data[PROFILES_KEY], data[STORAGE_KEY] || {});
+    if (profileId && state.activeId !== profileId) throw new Error("The active profile changed. Reopen the editor before saving.");
+    const latest = data[STORAGE_KEY] || {};
+    const changes = Object.fromEntries(Object.entries(profile).filter(([key, value]) =>
+      !Object.prototype.hasOwnProperty.call(latest, key) || JSON.stringify(value) !== JSON.stringify(formBaseline[key])
+    ));
+    const saved = Object.assign({}, latest, changes);
+    const active = state.items.find(item => item.id === state.activeId);
+    active.profile = saved;
+    await chrome.storage.local.set({ [STORAGE_KEY]: saved, [PROFILES_KEY]: state });
+    if (deletingData || epoch !== editEpoch) return null;
+    profileState = state;
+    return saved;
+  }));
   profileWrites = task;
-  if (!(await task)) return;
+  const saved = await task;
+  if (!saved) return;
+  formBaseline = profile;
   if (revision !== editRevision) return;
-  storedProfile = profile;
-  if (typeof renderRecipes === "function") renderRecipes();
-  if (typeof renderWidgetOffer === "function") renderWidgetOffer();
-  storedResume = profile.resumeFile;
+  storedProfile = saved;
+  for (const field of PROFILE_FIELDS) {
+    const el = $(field);
+    const value = typeof saved[field] === "string" ? saved[field] : "";
+    if (el && el.value !== value) el.value = value;
+  }
+  // Keep unchanged editor nodes alive so autosave never steals keyboard focus.
+  for (const [id, key, collect, render] of [
+    ["snippetRows", "customSnippets", collectSnippets, renderSnippets],
+    ["templateRows", "coverLetterTemplates", collectTemplates, renderTemplates],
+    ["expRows", "workExperiences", collectExperiences, renderExperiences],
+    ["eduRows", "educations", collectEducations, renderEducations]
+  ]) {
+    if ($(id) && JSON.stringify(collect()) !== JSON.stringify(saved[key] || [])) render(saved[key]);
+  }
+  if ($("replaceHistory")) $("replaceHistory").checked = saved.replaceHistory === true;
+  storedResume = saved.resumeFile;
   pendingResume = null;
   renderResumeInfo();
-  renderProfileSummary(profile);
+  renderProfileSummary(saved);
+  renderRecipes();
+  renderWidgetOffer();
   markClean();
+  formBaseline = readForm();
 }
 
 /** Quiet save used by the options page's auto-save. */
@@ -255,10 +284,5 @@ function fillFormFromProfile(profile) {
   renderResumeInfo();
   renderProfileSummary(source);
   markClean();
-}
-
-/** Write a profile to storage AND show it. */
-async function applyProfile(profile) {
-  await chrome.storage.local.set({ [STORAGE_KEY]: profile });
-  fillFormFromProfile(profile);
+  formBaseline = readForm();
 }

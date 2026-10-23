@@ -204,7 +204,7 @@
     const previous = answers.get(key); // rules 2 & 3
     if (!previous) {
       answers.set(key, { question, value, site: safeHost(), at: Date.now() });
-    } else if (keyOf(previous.value) !== keyOf(value)) {
+    } else if (previous.value !== value) {
       answers.delete(key);
       ambiguous.set(key, question); // keep the READABLE question for the report
     }
@@ -293,7 +293,7 @@
     const merged = new Map();
     for (const candidate of current.candidates) {
       const key = keyOf(candidate.question);
-      if (key) merged.set(key, candidate);
+      if (key && !ambiguous.has(key)) merged.set(key, candidate);
     }
     for (const [key, candidate] of answers) {
       if (!merged.has(key) && !written.has(key) && !covered(candidate.question)) {

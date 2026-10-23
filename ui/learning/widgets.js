@@ -84,8 +84,10 @@ async function storeCandidates() {
 async function storeRecipes() {
   try {
     await chrome.storage.local.set({ [RECIPES_KEY]: recipeState });
+    return true;
   } catch (err) {
-    /* as above */
+    setStatus("Could not save widgets. Your changes have not been saved; try again.", "warn");
+    return false;
   }
 }
 
@@ -156,32 +158,32 @@ async function saveAllWidgets() {
   const list = (section && section.widgetList) || [];
   if (list.length === 0) return;
 
-  const items = recipeState.items.slice();
   let added = 0;
-  for (const candidate of list) {
-    const key = widgetKey(candidate);
-    if (items.some((recipe) => widgetKey(recipe) === key)) continue;
-    // A fresh id and a created-at are the only things a candidate lacks.
-    items.unshift(
-      Object.assign({}, candidate, {
-        id: JOB_AUTOFILL_SHARED.newId(),
-        createdAt: Date.now()
-      })
-    );
-    added++;
+  try {
+    await JOB_AUTOFILL_SHARED.withStorageLock(async () => {
+      const data = await chrome.storage.local.get([RECIPES_KEY, WIDGET_CANDIDATES_KEY]);
+      const recipes = JOB_AUTOFILL_SHARED.sanitizeRecipes(data[RECIPES_KEY]);
+      const candidates = JOB_AUTOFILL_SHARED.sanitizeWidgetCandidates(data[WIDGET_CANDIDATES_KEY]);
+      const items = recipes.items.slice();
+      for (const candidate of list) {
+        if (items.some(recipe => widgetKey(recipe) === widgetKey(candidate))) continue;
+        if (items.length >= JOB_AUTOFILL_SHARED.maxRecipes) throw new Error("limit");
+        items.unshift({ ...candidate, id: JOB_AUTOFILL_SHARED.newId(), createdAt: Date.now() });
+        added++;
+      }
+      const saved = JOB_AUTOFILL_SHARED.sanitizeRecipes({ items });
+      const keys = list.map(widgetKey);
+      const remaining = { candidates: candidates.candidates.filter(candidate => !keys.includes(widgetKey(candidate))), skipped: candidates.skipped };
+      await chrome.storage.local.set({ [RECIPES_KEY]: saved, [WIDGET_CANDIDATES_KEY]: remaining });
+      recipeState = saved;
+      widgetCandidates = remaining;
+    });
+  } catch (err) {
+    setStatus(err.message === "limit"
+      ? "Saved widget limit reached. Forget an old widget first; your suggestions are still pending."
+      : "Could not save widgets. Your suggestions are still pending; try again.", "warn");
+    return;
   }
-  recipeState = JOB_AUTOFILL_SHARED.sanitizeRecipes({ items });
-
-  const keys = list.map(widgetKey);
-  widgetCandidates = {
-    candidates: (widgetCandidates.candidates || []).filter(
-      (candidate) => keys.indexOf(widgetKey(candidate)) === -1
-    ),
-    skipped: widgetCandidates.skipped || []
-  };
-
-  await storeRecipes();
-  await storeCandidates();
   await renderWidgetOffer();
   renderRecipes();
   setStatus(
@@ -360,7 +362,7 @@ async function editRecipeValue(id, fieldKey, value) {
       return Object.assign({}, recipe, { rows });
     })
   });
-  await storeRecipes();
+  if (!(await storeRecipes())) return;
   renderRecipes();
   setStatus("Widget updated.", "ok");
 }
@@ -375,7 +377,7 @@ async function renameRecipe(id, name) {
         : recipe
     )
   });
-  await storeRecipes();
+  if (!(await storeRecipes())) return;
   renderRecipes();
 }
 
@@ -384,7 +386,7 @@ async function deleteRecipe(id) {
   recipeState = JOB_AUTOFILL_SHARED.sanitizeRecipes({
     items: recipeState.items.filter((recipe) => recipe.id !== id)
   });
-  await storeRecipes();
+  if (!(await storeRecipes())) return;
   renderRecipes();
   setStatus("Forgotten — it will not be filled again.", "");
 }

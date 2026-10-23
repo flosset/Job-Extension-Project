@@ -12,8 +12,7 @@
       if (JA.NON_TEXT_INPUT_TYPES.indexOf(type) !== -1) return false;
     }
     // Hidden via display:none / visibility:hidden / zero layout box.
-    if (el.getClientRects().length === 0) return false;
-    return true;
+    return JA.isVisible(el);
   };
 
   /** Is a <select> still showing its placeholder / nothing chosen? */
@@ -39,7 +38,8 @@
   JA.isVisible = function (el) {
     if (!el || el.disabled) return false;
     try {
-      return el.getClientRects().length > 0;
+      const visibility = getComputedStyle(el).visibility;
+      return visibility !== "hidden" && visibility !== "collapse" && el.getClientRects().length > 0;
     } catch (err) {
       return true;
     }

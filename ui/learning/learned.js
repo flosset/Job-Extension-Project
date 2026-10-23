@@ -33,14 +33,6 @@ async function storeLearned() {
   }
 }
 
-/** The answer bank as THIS page sees it (unsaved edits included). */
-function bankOnPage() {
-  if ($("snippetRows")) return collectSnippets();
-  return Array.isArray(storedProfile.customSnippets)
-    ? storedProfile.customSnippets
-    : [];
-}
-
 /** Show the candidates as editable Key / Value rows. */
 function renderLearned() {
   const section = $("learnedSection");

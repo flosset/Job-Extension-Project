@@ -3,6 +3,13 @@
 // popup and the keyboard shortcut. Attaches to JOB_AUTOFILL_SHARED (created by
 // shared/index.js, which is loaded first).
 Object.assign(JOB_AUTOFILL_SHARED, {
+  /** A remembered run belongs to one posting, not every future page in its tab. */
+  runMatchesTab: function (record, tab) {
+    const page = record && (record.page || (record.results && record.results.page));
+    return !!(page && page.url && tab && tab.url &&
+      typeof record.at === "number" && record.at >= Date.now() - this.runMaxAgeMs &&
+      page.url === tab.url);
+  },
   // --- Application log ------------------------------------------------------
 
   /**
@@ -215,62 +222,64 @@ Object.assign(JOB_AUTOFILL_SHARED, {
    * not a posting at all.
    */
   logApplication: async function (page) {
-    if (!page) return null;
-    const company = typeof page.company === "string" ? page.company.trim() : "";
-    const role = typeof page.role === "string" ? page.role.trim() : "";
-    const url = typeof page.url === "string" ? page.url.trim() : "";
-    if (!company && !role && !url) return null;
+    return this.withStorageLock(async () => {
+      if (!page) return null;
+      const company = typeof page.company === "string" ? page.company.trim() : "";
+      const role = typeof page.role === "string" ? page.role.trim() : "";
+      const url = typeof page.url === "string" ? page.url.trim() : "";
+      if (!company && !role && !url) return null;
 
-    let items = [];
-    try {
-      const data = await chrome.storage.local.get(this.keys.applications);
-      items = this.sanitizeApplications(data && data[this.keys.applications]).items;
-    } catch (err) {
-      items = [];
-    }
-
-    const now = Date.now();
-    const existing = items.find((entry) =>
-      this.sameApplication(entry, { company, role, url })
-    );
-
-    let result;
-    if (existing) {
-      const repeated = now - (existing.lastAt || 0) <= this.duplicateQuietMs;
-      if (!repeated) {
-        existing.times = (existing.times || 1) + 1;
-        existing.lastAt = now;
+      let items = [];
+      try {
+        const data = await chrome.storage.local.get(this.keys.applications);
+        items = this.sanitizeApplications(data && data[this.keys.applications]).items;
+      } catch (err) {
+        return null;
       }
-      if (!existing.company) existing.company = company;
-      if (!existing.role) existing.role = role;
-      if (!existing.url) existing.url = url;
-      result = { entry: existing, isNew: false, repeated };
-    } else {
-      const entry = {
-        id: this.newId(),
-        company,
-        role,
-        url,
-        host: typeof page.host === "string" ? page.host : "",
-        at: now,
-        lastAt: now,
-        times: 1,
-        status: this.initialApplicationStatus
-      };
-      items.unshift(entry);
-      if (items.length > this.maxApplications) items.length = this.maxApplications;
-      result = { entry, isNew: true, repeated: false };
-    }
 
-    items.sort((a, b) => b.lastAt - a.lastAt || b.at - a.at);
-    try {
-      await chrome.storage.local.set({
-        [this.keys.applications]: { items: items.slice(0, this.maxApplications) }
-      });
-    } catch (err) {
-      /* the log is a convenience — never let it break a fill */
-    }
-    return result;
+      const now = Date.now();
+      const existing = items.find((entry) =>
+        this.sameApplication(entry, { company, role, url })
+      );
+
+      let result;
+      if (existing) {
+        const repeated = now - (existing.lastAt || 0) <= this.duplicateQuietMs;
+        if (!repeated) {
+          existing.times = (existing.times || 1) + 1;
+          existing.lastAt = now;
+        }
+        if (!existing.company) existing.company = company;
+        if (!existing.role) existing.role = role;
+        if (!existing.url) existing.url = url;
+        result = { entry: existing, isNew: false, repeated };
+      } else {
+        const entry = {
+          id: this.newId(),
+          company,
+          role,
+          url,
+          host: typeof page.host === "string" ? page.host : "",
+          at: now,
+          lastAt: now,
+          times: 1,
+          status: this.initialApplicationStatus
+        };
+        items.unshift(entry);
+        if (items.length > this.maxApplications) items.length = this.maxApplications;
+        result = { entry, isNew: true, repeated: false };
+      }
+
+      items.sort((a, b) => b.lastAt - a.lastAt || b.at - a.at);
+      try {
+        await chrome.storage.local.set({
+          [this.keys.applications]: { items: items.slice(0, this.maxApplications) }
+        });
+      } catch (err) {
+        /* the log is a convenience — never let it break a fill */
+      }
+      return result;
+    });
   },
 
   /**
@@ -279,40 +288,43 @@ Object.assign(JOB_AUTOFILL_SHARED, {
    * leaves the "fields left for you" list for the next popup open.
    */
   saveRunRecord: async function (tabId, results, extra) {
-    if (typeof tabId !== "number" || !results) return;
-    let runs = {};
-    try {
-      const data = await chrome.storage.local.get(this.keys.runs);
-      const raw = data && data[this.keys.runs];
-      runs = raw && typeof raw === "object" ? raw : {};
-    } catch (err) {
-      runs = {};
-    }
-    const cutoff = Date.now() - this.runMaxAgeMs;
-    const record = {
-      tabId,
-      at: Date.now(),
-      results,
-      page: (extra && extra.page) || null,
-      duplicate: (extra && extra.duplicate) || null,
-      ask: (extra && extra.ask) || null
-    };
-    const older = [];
-    for (const key of Object.keys(runs)) {
-      const kept = runs[key];
-      if (kept && typeof kept.at === "number" && kept.at >= cutoff && kept.tabId !== tabId) {
-        older.push(kept);
+    return this.withStorageLock(async () => {
+      if (typeof tabId !== "number" || !results) return;
+      let runs = {};
+      try {
+        const data = await chrome.storage.local.get(this.keys.runs);
+        const raw = data && data[this.keys.runs];
+        runs = raw && typeof raw === "object" ? raw : {};
+      } catch (err) {
+        runs = {};
       }
-    }
-    older.sort((a, b) => b.at - a.at);
-    const pruned = {};
-    for (const kept of [record].concat(older.slice(0, this.maxRuns - 1))) {
-      pruned[String(kept.tabId)] = kept;
-    }
-    try {
-      await chrome.storage.local.set({ [this.keys.runs]: pruned });
-    } catch (err) {
-      /* remembering the list is a convenience — never let it break a fill */
-    }
+      const cutoff = Date.now() - this.runMaxAgeMs;
+      const record = {
+        tabId,
+        at: Date.now(),
+        results,
+        page: (extra && extra.page) || null,
+        duplicate: (extra && extra.duplicate) || null,
+        ask: (extra && extra.ask) || null
+      };
+      const older = [];
+      for (const key of Object.keys(runs)) {
+        const kept = runs[key];
+        if (kept && typeof kept.at === "number" && kept.at >= cutoff && kept.tabId !== tabId) {
+          older.push(kept);
+        }
+      }
+      older.sort((a, b) => b.at - a.at);
+      const pruned = {};
+      for (const kept of [record].concat(older.slice(0, this.maxRuns - 1))) {
+        pruned[String(kept.tabId)] = kept;
+      }
+      try {
+        await chrome.storage.local.set({ [this.keys.runs]: pruned });
+      } catch (err) {
+        /* remembering the list is a convenience — never let it break a fill */
+      }
+      return record;
+    });
   },
 });

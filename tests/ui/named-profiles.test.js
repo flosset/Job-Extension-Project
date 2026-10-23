@@ -69,7 +69,7 @@ function openOptions(store, opts) {
     POPUP_JS +
       "\n; window.__t = { loadProfiles, get profileState() { return profileState; }, " +
       "activeProfile, activateProfile, createProfileFromCurrent, createNewProfile, " +
-      "duplicateProfile, renameProfile, deleteProfile, syncActiveProfile, " +
+      "duplicateProfile, renameProfile, deleteProfile, " +
       "renameActiveProfile, deleteActiveProfile, " +
       "refreshProfileSelect, loadProfile, saveProfile, readForm };"
   );

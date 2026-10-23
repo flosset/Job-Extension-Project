@@ -5,9 +5,15 @@
   "use strict";
   const JA = (window.__JobAutofill = window.__JobAutofill || {});
 
+  // Answers retain meaningful symbols and Unicode; field-label matching stays unchanged.
+  JA.valueKey = function (value) {
+    return String(value || "").toLowerCase().replace(/[_\-.]+/g, " ")
+      .replace(/[^\p{L}\p{N}+# ]+/gu, " ").replace(/\s+/g, " ").trim();
+  };
+
   /** Expand a stored value into the tokens to look for in option text. */
   JA.expandValueTokens = function (value) {
-    const primary = JA.normalize(value);
+    const primary = JA.valueKey(value);
     const synonyms = (JA.VALUE_SYNONYMS[primary] || []).slice();
 
     // US state abbreviations ↔ full names ("TX" ↔ "Texas").
@@ -20,7 +26,7 @@
       }
     }
 
-    return [primary].concat(synonyms.filter(Boolean));
+    return [primary].concat(synonyms).filter(Boolean);
   };
 
   // Words too generic to identify a field on their own.
@@ -189,8 +195,8 @@
     );
     const candidates = options.map((option) => ({
       el: option,
-      text: JA.normalize(option.textContent),
-      value: JA.normalize(option.value)
+      text: JA.valueKey(option.textContent),
+      value: JA.valueKey(option.value)
     }));
     return JA.pickPolaritySafe(candidates, value);
   };

@@ -210,27 +210,29 @@ async function onImportFilePicked() {
     }
     cancelAutoSave();
     await profileWrites.catch(() => {});
-    const values = { [STORAGE_KEY]: records.profile };
-    // Each section is restored only when the file carries it, so an older or
-    // partial file never wipes the parts it does not mention.
-    if (records.sections.widgets) {
-      values[RECIPES_KEY] = { items: records.widgets };
-    }
-    if (records.sections.profiles) {
-      values[PROFILES_KEY] = records.profiles;
-      const active = records.profiles.items.find((item) => item.id === records.profiles.activeId);
-      if (active) active.profile = records.profile;
-    } else if (typeof activeProfile === "function" && activeProfile()) {
-      activeProfile().profile = records.profile;
-      values[PROFILES_KEY] = profileState;
-    }
-    if (records.sections.applications) {
-      values[APPS_KEY] = records.applications;
-    }
-    if (records.sections.learned) {
-      values[LEARNED_KEY] = records.learned;
-    }
-    await chrome.storage.local.set(values);
+    await JOB_AUTOFILL_SHARED.withStorageLock(async () => {
+      const values = { [STORAGE_KEY]: records.profile };
+      // Each section is restored only when the file carries it, so an older or
+      // partial file never wipes the parts it does not mention.
+      if (records.sections.widgets) {
+        values[RECIPES_KEY] = { items: records.widgets };
+      }
+      if (records.sections.profiles) {
+        values[PROFILES_KEY] = records.profiles;
+        const active = records.profiles.items.find((item) => item.id === records.profiles.activeId);
+        if (active) active.profile = records.profile;
+      } else if (typeof activeProfile === "function" && activeProfile()) {
+        activeProfile().profile = records.profile;
+        values[PROFILES_KEY] = profileState;
+      }
+      if (records.sections.applications) {
+        values[APPS_KEY] = records.applications;
+      }
+      if (records.sections.learned) {
+        values[LEARNED_KEY] = records.learned;
+      }
+      await chrome.storage.local.set(values);
+    });
     fillFormFromProfile(records.profile);
     await refreshAfterRestore();
     setStatus("Restored. Check the fields above, then fill.", "ok");
@@ -276,7 +278,7 @@ async function deleteAllData() {
     // "fields left for you" lists, the application log, and the widgets the user
     // taught us — including the OTHER PEOPLE'S details (names, emails, phones)
     // a learned References block holds as plain text. All of it goes.
-    await chrome.storage.local.remove([
+    await JOB_AUTOFILL_SHARED.withStorageLock(() => chrome.storage.local.remove([
       STORAGE_KEY,
       LEARNED_KEY,
       RUNS_KEY,
@@ -284,7 +286,7 @@ async function deleteAllData() {
       APPS_KEY,
       RECIPES_KEY,
       WIDGET_CANDIDATES_KEY
-    ]);
+    ]));
   } catch (err) {
     deletingData = false;
     setStatus("Could not clear local storage.", "warn");

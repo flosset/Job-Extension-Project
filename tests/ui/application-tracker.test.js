@@ -71,7 +71,8 @@ const POPUP_SHELL = `<!doctype html><html><body>
 
 function openPopup(store, opts) {
   const options = opts || {};
-  const tabs = options.tabs || [{ id: 7, title: "Engineer - Acme", url: "https://acme.com/j/1" }];
+  const remembered = store[SHARED.keys.runs] && store[SHARED.keys.runs]["7"];
+  const tabs = options.tabs || [{ id: 7, title: "Engineer - Acme", url: (remembered && remembered.page && remembered.page.url) || "https://acme.com/j/1" }];
   const dom = new JSDOM(POPUP_SHELL, { runScripts: "dangerously", pretendToBeVisual: true });
   const w = dom.window;
   w.confirm = () => true;
@@ -127,7 +128,7 @@ async function fillWith(popup, page, extra) {
 /** Open a fresh popup on `tabId` and let its restore settle. */
 async function reopened(store, tabId) {
   const popup = openPopup(store, {
-    tabs: [{ id: tabId, title: "Engineer - Acme", url: "https://acme.com/j/1" }]
+    tabs: [{ id: tabId, title: "Engineer - Acme", url: store[SHARED.keys.runs][tabId].page.url }]
   });
   await sleep(70);
   return popup;
@@ -315,17 +316,19 @@ async function reopened(store, tabId) {
   t("F: a page with no job info logs nothing", !noPage.store[APPS_KEY]);
 
   // ---- G. the log as data -------------------------------------------------
-  const csv = popup.t.applicationsCsv();
+  const dataPopup = openPopup({ [APPS_KEY]: { items: structuredClone(popup.t.applicationState.items) } });
+  await sleep(40);
+  const csv = dataPopup.t.applicationsCsv();
   t("G: the CSV has a header", /^company,role,status,applied,last,times,url/.test(csv), csv.split("\r\n")[0]);
   t("G: the CSV quotes values", /"Acme Corp"/.test(csv));
   t("G: rows follow the header", csv.split("\r\n").length >= 2);
 
-  const first = popup.t.applicationState.items[0];
-  await popup.t.setApplicationStatus(first.id, "interview");
-  t("G: a status can be set", popup.t.applicationState.items[0].status === "interview");
+  const first = dataPopup.t.applicationState.items[0];
+  await dataPopup.t.setApplicationStatus(first.id, "interview");
+  t("G: a status can be set", dataPopup.t.applicationState.items[0].status === "interview");
   t(
     "G: an unknown status is refused",
-    (await popup.t.setApplicationStatus(first.id, "nonsense")) === false
+    (await dataPopup.t.setApplicationStatus(first.id, "nonsense")) === false
   );
   t(
     "G: a record with no status sanitises to 'in progress'",
@@ -333,13 +336,13 @@ async function reopened(store, tabId) {
       .status === "in progress"
   );
 
-  await popup.t.deleteApplication(first.id);
-  t("G: a row can be removed", popup.t.applicationState.items.length === 0);
-  await popup.t.clearApplications();
+  await dataPopup.t.deleteApplication(first.id);
+  t("G: a row can be removed", dataPopup.t.applicationState.items.length === 0);
+  await dataPopup.t.clearApplications();
   t(
     "G: the log can be cleared",
-    popup.t.applicationState.items.length === 0 &&
-      (popup.store[APPS_KEY].items || []).length === 0
+    dataPopup.t.applicationState.items.length === 0 &&
+      (dataPopup.store[APPS_KEY].items || []).length === 0
   );
 
   // ---- H. the log is user data -------------------------------------------

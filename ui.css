@@ -391,6 +391,8 @@
     .summary.empty { color: #8a909c; background: #f7f8fa; border-color: #e9ecf1; }
 
     /* --- "Fields left for you" list ---------------------------------------- */
+    .unfilled .locate-field { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+    .unfilled .locate-field:focus-visible { outline: 2px solid #92400e; outline-offset: 2px; }
     .unfilled li[title] { cursor: pointer; }
     .unfilled li[title]:hover { background: #fdf3e2; border-color: #f0d8ae; }
     .unfilled li.req { font-weight: 600; color: #92400e; }

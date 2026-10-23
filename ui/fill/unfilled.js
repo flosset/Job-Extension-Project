@@ -59,7 +59,11 @@ function renderUnfilled(entries) {
     li.textContent = (entry.required ? "★ " : "") + entry.label;
     if (entry.ref) {
       li.title = "Click to highlight this field on the page";
-      li.tabIndex = 0;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "locate-field";
+      button.textContent = li.textContent;
+      li.replaceChildren(button);
       li.addEventListener("click", () => locateField(entry.ref, li, entry.frameId));
     }
     list.appendChild(li);

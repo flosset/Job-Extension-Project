@@ -47,6 +47,13 @@ async function logRun(page) {
  * whatever the page gave, and the ask is closed as soon as they answer it.
  */
 async function finishRun(results, info) {
+  if (backgroundRunId) {
+    try {
+      const record = await chrome.runtime.sendMessage({ type: "JOB_AUTOFILL_RECORD", id: backgroundRunId });
+      if (record && record.ask && typeof showJobAsk === "function") showJobAsk(record.ask);
+    } catch (err) { /* the worker still owns persistence after popup closure */ }
+    return;
+  }
   const page = info.page;
   let ask = null;
 
@@ -74,15 +81,17 @@ async function finishRun(results, info) {
  */
 async function markAskAnswered() {
   if (typeof activeTabId !== "number") return;
-  const runs = await readRuns();
-  const record = runs[String(activeTabId)];
-  if (!record || !record.ask) return;
-  record.ask = null;
-  try {
-    await chrome.storage.local.set({ [RUNS_KEY]: runs });
-  } catch (err) {
-    /* not remembering the answer is a nuisance, not a failure */
-  }
+  await JOB_AUTOFILL_SHARED.withStorageLock(async () => {
+    const runs = await readRuns();
+    const record = runs[String(activeTabId)];
+    if (!record || !record.ask) return;
+    record.ask = null;
+    try {
+      await chrome.storage.local.set({ [RUNS_KEY]: runs });
+    } catch (err) {
+      /* not remembering the answer is a nuisance, not a failure */
+    }
+  });
 }
 
 /** Rebuild the "fields left for you" list for the active tab, if we have one. */
@@ -103,7 +112,7 @@ async function restoreRun() {
   const results = record && record.results;
   if (!results) return;
   // A stale record describes a page that has almost certainly changed since.
-  if (typeof record.at !== "number" || record.at < Date.now() - JOB_AUTOFILL_SHARED.runMaxAgeMs) {
+  if (!JOB_AUTOFILL_SHARED.runMatchesTab(record, tab)) {
     return;
   }
 

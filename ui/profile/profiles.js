@@ -18,17 +18,20 @@ let profileState = { activeId: "", items: [] };
 async function loadProfiles() {
   const epoch = editEpoch;
   try {
-    const data = await chrome.storage.local.get([PROFILES_KEY, STORAGE_KEY]);
-    if (epoch !== editEpoch || deletingData) return profileState;
-    profileState = JOB_AUTOFILL_SHARED.sanitizeProfiles(
-      data[PROFILES_KEY],
-      data[STORAGE_KEY]
-    );
-    // First run on a v1 install: persist the adopted profile so the list exists
-    // from now on rather than being re-derived on every open.
-    if (!data[PROFILES_KEY] && profileState.items.length) {
-      await chrome.storage.local.set({ [PROFILES_KEY]: profileState });
-    }
+    return await JOB_AUTOFILL_SHARED.withStorageLock(async () => {
+      const data = await chrome.storage.local.get([PROFILES_KEY, STORAGE_KEY]);
+      if (epoch !== editEpoch || deletingData) return profileState;
+      profileState = JOB_AUTOFILL_SHARED.sanitizeProfiles(
+        data[PROFILES_KEY],
+        data[STORAGE_KEY]
+      );
+      // First run on a v1 install: persist the adopted profile so the list exists
+      // from now on rather than being re-derived on every open.
+      if (!data[PROFILES_KEY] && profileState.items.length) {
+        await chrome.storage.local.set({ [PROFILES_KEY]: profileState });
+      }
+      return profileState;
+    });
   } catch (err) {
     /* the popup still fills from jobProfile — profiles are a convenience */
   }
@@ -40,15 +43,20 @@ function activeProfile() {
   return profileState.items.find((item) => item.id === profileState.activeId) || null;
 }
 
-/** Persist the list, optionally making `activateId` the active profile. */
-async function writeProfiles(activateId) {
-  if (activateId) profileState.activeId = activateId;
-  const active = activeProfile();
+/** Mutate the latest list while excluding other profile writers. */
+async function writeProfiles(update) {
   try {
-    const values = { [PROFILES_KEY]: profileState };
-    if (active) values[STORAGE_KEY] = active.profile;
-    await chrome.storage.local.set(values);
-    return true;
+    return await JOB_AUTOFILL_SHARED.withStorageLock(async () => {
+      const data = await chrome.storage.local.get([PROFILES_KEY, STORAGE_KEY]);
+      const state = JOB_AUTOFILL_SHARED.sanitizeProfiles(data[PROFILES_KEY], data[STORAGE_KEY]);
+      if (!update(state)) return false;
+      const active = state.items.find(item => item.id === state.activeId);
+      const values = { [PROFILES_KEY]: state };
+      if (active) values[STORAGE_KEY] = active.profile;
+      await chrome.storage.local.set(values);
+      profileState = state;
+      return true;
+    });
   } catch (err) {
     return false;
   }
@@ -56,20 +64,11 @@ async function writeProfiles(activateId) {
 
 /** Make `id` the profile the next fill uses. */
 async function activateProfile(id) {
-  if (!profileState.items.some((item) => item.id === id)) return false;
-  return writeProfiles(id);
-}
-
-/** The stored jobProfile, straight from storage. */
-async function currentStoredProfile() {
-  try {
-    const data = await chrome.storage.local.get(STORAGE_KEY);
-    return data[STORAGE_KEY] && typeof data[STORAGE_KEY] === "object"
-      ? data[STORAGE_KEY]
-      : {};
-  } catch (err) {
-    return {};
-  }
+  return writeProfiles(state => {
+    if (!state.items.some(item => item.id === id)) return false;
+    state.activeId = id;
+    return true;
+  });
 }
 
 /** Snapshot the CURRENT profile under a name — a new profile. */
@@ -81,10 +80,15 @@ async function createProfileFromCurrent(name) {
   const item = {
     id: JOB_AUTOFILL_SHARED.newId(),
     name: (clean || `Profile ${profileState.items.length + 1}`).slice(0, 40),
-    profile: await currentStoredProfile()
+    profile: {}
   };
-  profileState.items.push(item);
-  const ok = await writeProfiles(item.id);
+  const ok = await writeProfiles(state => {
+    if (state.items.length >= JOB_AUTOFILL_SHARED.maxProfiles) return false;
+    item.profile = (state.items.find(entry => entry.id === state.activeId) || {}).profile || {};
+    state.items.push(item);
+    state.activeId = item.id;
+    return true;
+  });
   return ok ? { ok: true, id: item.id } : { ok: false, reason: "storage" };
 }
 
@@ -101,8 +105,14 @@ async function duplicateProfile(id) {
     // A deep copy, so editing one profile can never reach into the other.
     profile: JSON.parse(JSON.stringify(source.profile))
   };
-  profileState.items.push(copy);
-  const ok = await writeProfiles(copy.id);
+  const ok = await writeProfiles(state => {
+    const latest = state.items.find(item => item.id === id);
+    if (!latest || state.items.length >= JOB_AUTOFILL_SHARED.maxProfiles) return false;
+    copy.profile = JSON.parse(JSON.stringify(latest.profile));
+    state.items.push(copy);
+    state.activeId = copy.id;
+    return true;
+  });
   return ok ? { ok: true, id: copy.id } : { ok: false, reason: "storage" };
 }
 
@@ -111,34 +121,24 @@ async function renameProfile(id, name) {
   const item = profileState.items.find((entry) => entry.id === id);
   const clean = (name || "").trim();
   if (!item || !clean) return false;
-  item.name = clean.slice(0, 40);
-  return writeProfiles();
+  return writeProfiles(state => {
+    const latest = state.items.find(entry => entry.id === id);
+    if (!latest) return false;
+    latest.name = clean.slice(0, 40);
+    return true;
+  });
 }
 
 /** Remove one profile. The last one cannot be removed. */
 async function deleteProfile(id) {
   if (profileState.items.length <= 1) return { ok: false, reason: "last" };
-  profileState.items = profileState.items.filter((item) => item.id !== id);
-  const next =
-    profileState.activeId === id ? profileState.items[0].id : profileState.activeId;
-  const ok = await writeProfiles(next);
-  return ok ? { ok: true } : { ok: false, reason: "storage" };
-}
-
-/**
- * Save the profile the editor is showing back into the ACTIVE profile item, so
- * the list and the live jobProfile never drift apart after an edit.
- */
-async function syncActiveProfile(profile) {
-  const active = activeProfile();
-  if (!active || !profile) return false;
-  active.profile = profile;
-  try {
-    await chrome.storage.local.set({ [PROFILES_KEY]: profileState });
+  const ok = await writeProfiles(state => {
+    if (state.items.length <= 1 || !state.items.some(item => item.id === id)) return false;
+    state.items = state.items.filter(item => item.id !== id);
+    if (state.activeId === id) state.activeId = state.items[0].id;
     return true;
-  } catch (err) {
-    return false;
-  }
+  });
+  return ok ? { ok: true } : { ok: false, reason: "storage" };
 }
 
 /** Fill the profile picker on whichever page has one. */

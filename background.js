@@ -1,4 +1,5 @@
-// background.js — the MV3 service worker. It exists for exactly two reasons.
+// background.js — the MV3 service worker. Owns popup and shortcut fill completion,
+// so closing the popup cannot discard tracking or the remaining-field list.
 //
 //   1. The keyboard shortcut (Alt+Shift+F). A popup cannot be opened by a
 //      shortcut, so starting a fill has to be possible from outside it: the
@@ -38,6 +39,7 @@ const state = {
   pending: 0,  // answers waiting to be reviewed
   flash: null, // the transient badge (a fill result), if any
   run: null,   // the in-flight shortcut run, if any
+  runs: new Map(),
   deadlineMs: JOB_AUTOFILL_SHARED.runDeadlineMs,
   flashMs: 5000
 };
@@ -92,21 +94,29 @@ function flashResult(text, color, title) {
 }
 
 /** Inject the content scripts into every frame, exactly like the popup does. */
-async function injectAllFrames(tabId) {
+async function injectAllFrames(tabId, approveDeletion, popup) {
   const target = { tabId, allFrames: true };
   try {
-    return await chrome.scripting.executeScript({
-      target,
-      files: SCRIPTS,
-      matchOriginAsFallback: true
-    });
-  } catch (err) {
-    // Chrome builds without matchOriginAsFallback: retry plainly.
-    const message = String((err && err.message) || err);
-    if (/matchOriginAsFallback/i.test(message)) {
-      return await chrome.scripting.executeScript({ target, files: SCRIPTS });
+    if (approveDeletion) await chrome.scripting.executeScript({ target, func: () => {
+      window.__jobAutofillDeleteApproval = true;
+    } });
+    try {
+      return await chrome.scripting.executeScript({ target, files: SCRIPTS, matchOriginAsFallback: true });
+    } catch (err) {
+      // Chrome builds without matchOriginAsFallback: retry plainly.
+      const message = String((err && err.message) || err);
+      if (/matchOriginAsFallback/i.test(message)) {
+        return await chrome.scripting.executeScript({ target, files: SCRIPTS });
+      }
+      if (popup) return await chrome.scripting.executeScript({ target: { tabId }, files: SCRIPTS });
+      throw err;
     }
-    throw err;
+  } finally {
+    if (approveDeletion) {
+      try {
+        await chrome.scripting.executeScript({ target, func: () => { delete window.__jobAutofillDeleteApproval; } });
+      } catch (err) { /* navigation or inaccessible frames */ }
+    }
   }
 }
 
@@ -130,7 +140,7 @@ function finishRun(run) {
   // Using the shortcut must NOT lose your tracking: log the application and
   // store the run for this tab, exactly as the popup does (best-effort — the
   // badge above is already shown either way).
-  recordShortcutRun(run).catch(() => {});
+  recordShortcutRun(run).then(run.resolve, () => run.resolve(null));
 }
 
 /**
@@ -141,8 +151,9 @@ function finishRun(run) {
  */
 async function recordShortcutRun(run) {
   const top = run.top;
-  if (!top || !top.page) return;
+  const page = (top && top.page) || { url: run.url };
   const results = {
+    page,
     unfilled: run.unfilled,
     iframes: run.iframes,
     frames: run.replies,
@@ -161,7 +172,7 @@ async function recordShortcutRun(run) {
   } catch (err) {
     items = [];
   }
-  const previous = JOB_AUTOFILL_SHARED.findPreviousApplication(top.page, items);
+  const previous = JOB_AUTOFILL_SHARED.findPreviousApplication(page, items);
   const duplicate = previous
     ? {
         level: previous.level,
@@ -171,17 +182,17 @@ async function recordShortcutRun(run) {
       }
     : null;
 
-  const willLog = !run.sawEmpty && (run.filled > 0 || results.scanned > 0 || results.attached > 0 || results.flagged > 0);
+  const willLog = top && top.page && !run.sawEmpty && (run.filled > 0 || results.scanned > 0 || results.attached > 0 || results.flagged > 0);
   let ask = null;
   if (willLog) {
-    const logged = await JOB_AUTOFILL_SHARED.logApplication(top.page);
+    const logged = await JOB_AUTOFILL_SHARED.logApplication(page);
     const entry = logged && logged.entry;
     if (entry && (!entry.company || !entry.role)) {
       ask = { id: entry.id, company: entry.company || "", role: entry.role || "" };
     }
   }
-  await JOB_AUTOFILL_SHARED.saveRunRecord(run.tabId, results, {
-    page: top.page,
+  return await JOB_AUTOFILL_SHARED.saveRunRecord(run.tabId, results, {
+    page,
     duplicate,
     ask
   });
@@ -193,12 +204,13 @@ function finishIfComplete(run) {
 }
 
 /** The Alt+Shift+F path: fill the active tab without ever opening the popup. */
-async function startShortcutFill() {
-  if (state.run) return; // one shortcut fill at a time
+async function startShortcutFill(requestedTab, approveDeletion = false) {
+  if (state.run) return { ok: false, busy: true };
 
   let tab;
   try {
     [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (requestedTab !== undefined && (!tab || tab.id !== requestedTab)) return { ok: false };
   } catch (err) {
     return;
   }
@@ -217,8 +229,11 @@ async function startShortcutFill() {
     );
     return;
   }
+  if (state.run) return { ok: false, busy: true };
 
   const run = {
+    id: JOB_AUTOFILL_SHARED.newId(),
+    url: tab.url,
     tabId: tab.id,
     expected: null,
     replies: 0,
@@ -233,24 +248,29 @@ async function startShortcutFill() {
     top: null,   // the top frame's report: page, unfilled, counts
     timer: null
   };
+  run.done = new Promise(resolve => { run.resolve = resolve; });
+  state.runs.set(run.id, run);
+  while (state.runs.size > JOB_AUTOFILL_SHARED.maxRuns) state.runs.delete(state.runs.keys().next().value);
   state.run = run;
   flashResult("…", "#2563eb", "Filling this application…");
 
   try {
-    const injected = await injectAllFrames(tab.id);
+    const injected = await injectAllFrames(tab.id, approveDeletion, requestedTab !== undefined);
     run.expected = Array.isArray(injected) ? injected.length : 1;
   } catch (err) {
     state.run = null;
+    run.resolve(null);
     flashResult(
       "!",
       "#b91c1c",
       "Cannot fill this page — open the popup once to allow this site, then try again"
     );
-    return;
+    return { ok: false };
   }
 
   run.timer = setTimeout(() => finishRun(run), state.deadlineMs);
   finishIfComplete(run);
+  return { ok: true, id: run.id, expected: run.expected };
 }
 
 chrome.commands.onCommand.addListener((command) => {
@@ -259,7 +279,20 @@ chrome.commands.onCommand.addListener((command) => {
 
 // Results arrive from the injected autofill.js in every frame. "busy" counts as
 // a reply (executeScript reached that frame too), so the run can still complete.
-chrome.runtime.onMessage.addListener((message, sender) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!message) return;
+  if (message.type === "JOB_AUTOFILL_START" || message.type === "JOB_AUTOFILL_RECORD") {
+    if (sender && sender.tab && (!sender.url || !sender.url.startsWith(chrome.runtime.getURL("")))) return;
+    if (message.type === "JOB_AUTOFILL_START" && !Number.isInteger(message.tabId)) {
+      sendResponse({ ok: false });
+      return;
+    }
+    const pending = message.type === "JOB_AUTOFILL_START"
+      ? startShortcutFill(message.tabId, message.approveDeletion === true)
+      : (state.runs.get(message.id) || {}).done || Promise.resolve(null);
+    pending.then(sendResponse, () => sendResponse(null));
+    return true;
+  }
   const run = state.run;
   if (!run || !message || message.type !== "JOB_AUTOFILL_RESULT") return;
   if (!sender || !sender.tab || sender.tab.id !== run.tabId) return;

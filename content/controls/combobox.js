@@ -64,8 +64,8 @@
   JA.matchOptionElement = function (options, value) {
     const candidates = options.map((option) => ({
       el: option,
-      text: JA.normalize(option.textContent),
-      value: JA.normalize(option.getAttribute("data-value") || "")
+      text: JA.valueKey(option.textContent),
+      value: JA.valueKey(option.getAttribute("data-value") || "")
     }));
     return JA.pickPolaritySafe(candidates, value);
   };
@@ -183,10 +183,6 @@
    *   3. a bare click, re-opening the menu first if it closed.
    * The dropdown is always closed afterwards.
    */
-  JA.chooseComboOption = async function (key, value, used) {
-    return JA.chooseComboByKeywords(JA.KEYWORDS[key], value, used);
-  };
-
   /**
    * Open the dropdown matching `keywords`, read its option list, and commit
    * `value` if an option matches. `value` comes from either a fixed profile key

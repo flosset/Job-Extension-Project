@@ -22,6 +22,15 @@
 // It deliberately uses `var`: importScripts() evaluates it in the worker's
 // global scope, where a second load must not be a redeclaration error.
 var JOB_AUTOFILL_SHARED = {
+  /** Extension pages and the worker share this origin-wide storage lock. */
+  withStorageLock: function (task) {
+    if (typeof navigator !== "undefined" && navigator.locks) {
+      return navigator.locks.request("job-autofill-storage", task);
+    }
+    const next = (this.storageWrites || Promise.resolve()).catch(() => {}).then(task);
+    this.storageWrites = next;
+    return next;
+  },
   /** chrome.storage.local keys. */
   keys: {
     profile: "jobProfile",

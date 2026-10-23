@@ -1,6 +1,6 @@
 # Architecture
 
-Private Job Autofill is a Chrome Manifest V3 extension built from plain JavaScript and HTML. Its popup and keyboard shortcut independently inject the same autofill engine into permitted page frames. Profiles, tracking records, and learning candidates live in `chrome.storage.local`; there is no application backend or outbound-request implementation in the inspected runtime code.
+Private Job Autofill is a Chrome Manifest V3 extension built from plain JavaScript and HTML. Its popup and keyboard shortcut ask the service worker to inject the same autofill engine into permitted page frames. The worker retains completion ownership if the popup closes. Profiles, tracking records, and learning candidates live in `chrome.storage.local`; there is no application backend or outbound-request implementation in the inspected runtime code.
 
 This document describes the current source, including implementation limitations. Start with the overview, then follow the fill sequences or data flows. Paths below link to the implementation.
 
@@ -54,7 +54,7 @@ flowchart TB
     H -.->|First files in injected list| C
 ```
 
-The worker processes result messages only while a shortcut run is active and only for its tab. Popup results feed its own active aggregator. The worker does not coordinate ordinary popup fills. Access comes from `activeTab`, the listed ATS host permissions, or optional `*://*/*` access explicitly requested from the popup; inaccessible frames can remain unfilled.
+The worker processes results for the active popup or shortcut fill and its tab. It owns tracking and run persistence. The popup also aggregates messages for live display; closing it does not stop the worker's recording. Access comes from `activeTab`, the listed ATS host permissions, or optional `*://*/*` access explicitly requested from the popup; inaccessible frames can remain unfilled.
 
 ## Modules and loading order
 
@@ -130,57 +130,15 @@ Definitions can reference helpers loaded later, but those helpers must exist bef
 
 ### Popup Fill
 
-Sources: [ui/fill/run.js](../ui/fill/run.js), [aggregate.js](../ui/fill/aggregate.js), [history.js](../ui/fill/history.js).
+Sources: [ui/fill/run.js](../ui/fill/run.js), [background.js](../background.js), [aggregate.js](../ui/fill/aggregate.js), and [history.js](../ui/fill/history.js).
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant P as Popup runner and aggregator
-    participant API as Chrome scripting API
-    participant C as Content engine in reached frames
-    participant S as Local storage
-    User->>P: Click Fill Application
-    opt Replace history checked
-        P->>User: Confirm deletion for this run
-        Note over User,P: Cancellation returns before injection
-    end
-    P->>P: Start aggregation and 15-second deadline; query active tab
-    Note over P: Missing tab or query failure cancels the run
-    opt Deletion confirmed
-        P->>API: Set one-use approval in target frames
-    end
-    P->>API: Inject ordered files with allFrames
-    Note over API: Retry without matchOriginAsFallback if unsupported
-    alt All-frame injection rejects
-        P->>API: Retry files in top frame only
-        Note over P,API: If retry fails, cancel and show cannot-run warning
-    end
-    API->>C: Evaluate scripts in permitted frames
-    API-->>P: Injection results establish expected frame count
-    Note over P,C: Messages may arrive before the expected count is known
-    C->>S: Read jobProfile and saved recipes
-    C->>C: Run shared fill pipeline or report busy, empty, or error
-    C-->>P: JOB_AUTOFILL_RESULT from each reporting frame
-    P->>P: Add sender frameId to field references and aggregate
-    Note over P: All statuses count as replies; busy is not a fill error
-    alt Every expected frame reports
-        P->>P: Finish after 250 ms grace
-    else Deadline expires
-        P->>P: Finish available results and show known reply shortfall
-    end
-    P->>P: Render status, remaining fields, duplicate warning
-    opt Unreachable-frame predicate is true
-        P->>P: Offer optional host access if not already granted
-    end
-    opt Top-frame metadata and log-worthy scan or fill
-        P->>S: logApplication; create or update in-progress record
-        P->>P: Ask for missing company or role
-    end
-    P->>S: saveRunRecord for active tab
-    Note over P,API: Finally, clear any remaining one-use deletion approval
-```
+1. The popup confirms destructive history removal for this run and queries the active tab.
+2. `JOB_AUTOFILL_START` asks the worker to start a fill. The worker rejects overlapping fills, injects the content scripts, and returns a run ID and expected frame count.
+3. The worker consumes every frame result and owns the completion deadline, application log, and saved run. Popup fills retain a top-frame injection fallback. One-use deletion approval is cleared after injection.
+4. While open, the popup independently aggregates results for progress and field review. `JOB_AUTOFILL_RECORD` waits for the worker's saved record and recovers any missing-job-name question.
+5. Closing the popup destroys only its display. The worker still finishes and records the fill. Reopening restores records only when their URL and age match the active tab.
 
-The permission offer uses `iframes > 0`, fewer replies than `1 + iframes`, and zero filled fields; the iframe counter filters for form-capable frames. Granting access asks the user to press Fill again. Popup cleanup of deletion approval runs in the injection function's `finally`, independently of asynchronous result completion. Profile absence suppresses logging. A run is log-worthy when page metadata exists and at least one field was scanned/filled, a resume attached, or a drop zone flagged.
+The direct-injection helper remains a compatibility fallback when a caller has no worker start-response implementation; the shipped worker handles ordinary popup starts.
 
 ### Keyboard shortcut
 
@@ -318,24 +276,22 @@ flowchart TD
     Rename --> Runs
 ```
 
-The save arrow represents the independent result-recording step; it also runs without an eligible application in the popup path. The worker requires a top-frame page report before saving either tracking or run data.
+The save arrow represents worker-owned result recording. A top-frame page report is needed to log an application; available run diagnostics can still be saved without one.
 
 [shared/applications.js](../shared/applications.js) owns identity and persistence rules. Canonical URL matching preserves job-identifying query parameters and removes known trackers. Company/role matches can produce a possible-repeat warning without merging different known posting URLs. Repeated fills within five minutes do not increment the visit count. New rows start `in progress`; submission status changes are explicit UI actions.
 
-[history.js](../ui/fill/history.js) restores results by tab ID and age, while [job-ask.js](../ui/tracker/job-ask.js) edits the existing row and clears its saved question. Remaining-field entries include labels and, where available, DOM references and frame IDs; saved results also include counts and job metadata. These records are richer than just field labels.
+[history.js](../ui/fill/history.js) restores results by tab ID, exact current URL, and age, while [job-ask.js](../ui/tracker/job-ask.js) edits the existing row and clears its saved question. Remaining-field entries include labels and, where available, DOM references and frame IDs; saved results also include counts and job metadata. These records are richer than just field labels.
 
 ## Verification and limitations
 
-The relationships above were checked against the manifest, both HTML script lists, shared key/script definitions, worker handlers, content orchestrator, and UI fill/profile/learning/tracker implementations. Source behavior takes precedence over older comments that mention superseded filenames or describe run records as labels only. No applicable `AGENTS.md` was found in the repository or checked workspace ancestors.
+The relationships above were checked against the manifest, both HTML script lists, shared key/script definitions, worker handlers, content orchestrator, and UI fill/profile/learning/tracker implementations. Source behavior takes precedence over older comments that mention superseded filenames or describe run records as labels only. Repository `AGENTS.md` governs browser QA, storage preservation, and release checks.
 
 Important limits visible in the implementation:
 
-- **Popup lifetime:** popup aggregation and final persistence belong to the popup document. Closing it before completion can lose its final run/log write even though content scripts continue. The worker only aggregates its own shortcut runs.
 - **Worker lifetime:** shortcut state and completion timers are in memory; no recovery of an interrupted worker run is implemented.
-- **Reply identity:** results carry no run ID, and completion counts replies rather than unique sender frames. Overlapping popup/shortcut runs or delayed replies can mix same-tab results; per-frame busy guards and the worker's shortcut guard reduce overlap but do not provide cross-context coordination.
-- **Storage concurrency:** profile writes are queued inside one UI document. Whole-record read/modify/write operations across documents, frames, or the worker have no global transaction or lock, so concurrent writes can overwrite one another.
-- **Stale references:** restored runs are checked by tab ID and age, not current URL or document identity. Browser-session persistence does not guarantee that tab IDs or DOM references still refer to the original page.
-- **Cover-letter lookup mismatch:** `pageForTab()` in [letter.js](../ui/cover-letter/letter.js) reads `record.results.page`. Shortcut records put metadata in `record.page`, without adding it to `results`; this lookup can fall back to tab title after a shortcut run despite saved page metadata.
+- **Reply identity:** the worker serializes popup and shortcut starts, but results carry no run ID and completion counts replies rather than unique frames. Delayed results after a deadline can still need a fresh Fill.
+- **Storage concurrency:** profile, named-profile, application-log, run-record, restore, deletion, and widget-acceptance writes use an extension-origin Web Lock. Profile saves merge changed fields into current storage; edits to the same field remain last-writer-wins. Content-script learning and recipe-usage counters still use separate best-effort writes.
+- **Stale references:** URL and age checks reject a different posting, but a reload at the same URL can still invalidate DOM handles.
 - **Browser-dependent behavior:** actual host access, iframe injection, framework-controlled inputs, uploads, and MV3 worker suspension need browser verification. Source inspection alone does not establish success on every ATS.
 
-No Mermaid renderer or parser was available in the project's installed tooling during this review. Diagram fences and local source links were checked, but Mermaid parsing and visual rendering were not verified. Application behavior was not changed.
+No Mermaid renderer or parser was available in the project's installed tooling during this review. Diagram fences and local source links were checked, but Mermaid parsing and visual rendering were not verified. The 2.5.1 fixes add coordinated storage writes, worker-owned popup completion, safer option matching, local section growth, and native remaining-field buttons.

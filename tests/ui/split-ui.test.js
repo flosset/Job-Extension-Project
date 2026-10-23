@@ -33,7 +33,7 @@ function loadPage(file, seed) {
   window.chrome = {
     storage: {
       local: {
-        get: async (k) => (k in storage ? { [k]: storage[k] } : {}),
+        get: async (k) => typeof k === "string" ? { [k]: storage[k] } : structuredClone(storage),
         set: async (obj) => {
           writes.push(obj);
           Object.assign(storage, obj);

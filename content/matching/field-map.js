@@ -518,7 +518,7 @@
         description: ["role description", "description", "responsibilities", "duties"],
         current: ["currently work", "i currently", "current position"]
       },
-      addButton: ["add another", "add"],
+      addButton: ["add experience", "add work experience", "add another", "add"],
       deleteButton: ["delete", "remove"],
       confirmButton: ["delete", "confirm", "yes", "ok"],
       dateFormat: "month-year"
@@ -538,7 +538,7 @@
         from: ["from", "start"],
         to: ["to actual or expected", "to", "end"]
       },
-      addButton: ["add another", "add"],
+      addButton: ["add education", "add another", "add"],
       deleteButton: ["delete", "remove"],
       confirmButton: ["delete", "confirm", "yes", "ok"],
       dateFormat: "year"

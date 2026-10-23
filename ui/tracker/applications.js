@@ -28,10 +28,16 @@ async function loadApplications() {
 }
 
 /** Persist the log. */
-async function writeApplications() {
+async function writeApplications(update) {
   try {
-    await chrome.storage.local.set({ [APPS_KEY]: applicationState });
-    return true;
+    return await JOB_AUTOFILL_SHARED.withStorageLock(async () => {
+      const data = await chrome.storage.local.get(APPS_KEY);
+      const next = JOB_AUTOFILL_SHARED.sanitizeApplications(data[APPS_KEY]);
+      if (!update(next)) return false;
+      await chrome.storage.local.set({ [APPS_KEY]: next });
+      applicationState = next;
+      return true;
+    });
   } catch (err) {
     return false;
   }
@@ -59,25 +65,27 @@ async function recordApplication(page) {
 
 /** Change one application's pipeline status. */
 async function setApplicationStatus(id, status) {
-  const entry = applicationState.items.find((item) => item.id === id);
-  if (!entry) return false;
   if (JOB_AUTOFILL_SHARED.applicationStatuses.indexOf(status) === -1) return false;
-  entry.status = status;
-  return writeApplications();
+  return writeApplications(state => {
+    const entry = state.items.find(item => item.id === id);
+    if (!entry) return false;
+    entry.status = status;
+    return true;
+  });
 }
 
 /** Remove one row. */
 async function deleteApplication(id) {
-  const before = applicationState.items.length;
-  applicationState.items = applicationState.items.filter((item) => item.id !== id);
-  if (applicationState.items.length === before) return false;
-  return writeApplications();
+  return writeApplications(state => {
+    const before = state.items.length;
+    state.items = state.items.filter(item => item.id !== id);
+    return state.items.length !== before;
+  });
 }
 
 /** Remove every row. */
 async function clearApplications() {
-  applicationState = { items: [] };
-  return writeApplications();
+  return writeApplications(state => { state.items = []; return true; });
 }
 
 /** "Acme — Senior Frontend Engineer" (falls back to whatever we know). */
@@ -131,12 +139,14 @@ function applicationsCsv() {
 
 /** Change one application's name/role (the page often cannot tell us). */
 async function setApplicationName(id, company, role) {
-  const entry = applicationState.items.find((item) => item.id === id);
-  if (!entry) return false;
   const clean = (value) => String(value == null ? "" : value).replace(/\s+/g, " ").trim();
-  entry.company = clean(company).slice(0, 80);
-  entry.role = clean(role).slice(0, 120);
-  return writeApplications();
+  return writeApplications(state => {
+    const entry = state.items.find(item => item.id === id);
+    if (!entry) return false;
+    entry.company = clean(company).slice(0, 80);
+    entry.role = clean(role).slice(0, 120);
+    return true;
+  });
 }
 
 

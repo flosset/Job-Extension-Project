@@ -30,6 +30,7 @@ async function switchProfile() {
 async function createNewProfile() {
   const name = window.prompt("Name this new profile", "New profile");
   if (name === null) return;
+  await flushAutoSave();
   const result = await createProfileFromCurrent(name);
   if (!result.ok) {
     setStatus(
@@ -59,6 +60,7 @@ async function renameActiveProfile() {
 
 /** Copy the active profile, so a variation can be edited freely. */
 async function duplicateActiveProfile() {
+  await flushAutoSave();
   const active = activeProfile();
   if (!active) return;
   const result = await duplicateProfile(active.id);

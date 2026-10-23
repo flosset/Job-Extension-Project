@@ -40,6 +40,7 @@ async function injectIntoAllFrames(tabId, approveDeletion) {
 
 /** The tab we last filled, so the field list can message it. */
 let activeTabId = null;
+let backgroundRunId = null;
 
 async function teachActiveTab() {
   const button = $("teachBtn");
@@ -99,6 +100,21 @@ async function fillActiveTab() {
   }
 
   try {
+    backgroundRunId = null;
+    if (chrome.runtime.sendMessage) {
+      const started = await chrome.runtime.sendMessage({ type: "JOB_AUTOFILL_START", tabId: tab.id,
+        approveDeletion: !!(replaceBox && replaceBox.checked) });
+      if (started) {
+        if (!started.ok) {
+          aggregate.cancel();
+          setStatus(started.busy ? "A fill is already running. Wait for it to finish." : "Could not start autofill on this page.", "warn");
+          return;
+        }
+        backgroundRunId = started.id;
+        aggregate.setExpected(started.expected);
+        return;
+      }
+    }
     const injected = await injectIntoAllFrames(tab.id, !!(replaceBox && replaceBox.checked));
     // Now that we know how many frames were reached, completion is defined:
     // render once every one of them has reported (or the deadline expires).
