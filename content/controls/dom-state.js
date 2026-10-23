@@ -37,6 +37,7 @@
   /** Visible to the user (laid out), regardless of whether it takes text. */
   JA.isVisible = function (el) {
     if (!el || el.disabled) return false;
+    if (el.closest('[hidden], [aria-hidden="true"]')) return false;
     try {
       const visibility = getComputedStyle(el).visibility;
       return visibility !== "hidden" && visibility !== "collapse" && el.getClientRects().length > 0;
@@ -51,7 +52,12 @@
     if (el.required) return true;
     if (el.getAttribute("aria-required") === "true") return true;
     const text = JA.labelTextFor ? JA.labelTextFor(el) : "";
-    if (/\*/.test(text)) return true;
+    for (let node = el.parentElement, depth = 0; node && depth < 6; node = JA.parentOrHost(node), depth++) {
+      const labels = Array.from(node.children).filter(child => child.matches('label, .application-label'));
+      if (labels.some(label => JA.normalize(label.textContent) === JA.normalize(text) &&
+          (label.matches('[class*="required" i]') || label.querySelector('[class*="required" i]')))) return true;
+    }
+    if (/[*✱]/.test(text)) return true;
     if (/\*/.test(el.getAttribute("aria-label") || "")) return true;
     return /(^| )required( |$)/.test(JA.normalize(JA.getSignal(el)));
   };

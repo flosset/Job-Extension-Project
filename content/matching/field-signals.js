@@ -98,7 +98,7 @@
     for (let level = 0; ancestor && level < 6; level++) {
       let found = false;
       for (const child of ancestor.children) {
-        if (child === el || child.tagName !== "LABEL") continue;
+        if (child === el || !child.matches('label, .application-label')) continue;
         if (child.querySelector("input, select, textarea")) continue;
         const forId = child.getAttribute("for");
         if (forId && forId !== el.id) {
@@ -146,6 +146,9 @@
   /** Text of the <label>s / aria-labelledby targets attached to an element. */
   JA.labelTextFor = function (el) {
     const bits = [];
+    const question = el.closest('.application-question');
+    const leverLabel = question?.querySelector('.application-label');
+    if (leverLabel) return leverLabel.textContent;
     const by = el.getAttribute("aria-labelledby");
     if (by) {
       by.split(/\s+/).forEach((id) => {
@@ -156,7 +159,19 @@
     JA.labelsFor(el).forEach((label) => bits.push(label.textContent));
     const wrapping = el.closest("label");
     if (wrapping) bits.push(wrapping.textContent);
-    return bits.filter(Boolean).join(" ");
+    if (!bits.filter(Boolean).length) {
+      for (let node = el.parentElement, depth = 0; node && depth < 6; node = JA.parentOrHost(node), depth++) {
+        const labels = Array.from(node.children).filter(child => child.matches('label, .application-label, [data-automation-id="formLabel"]'));
+        const label = labels.find(child => {
+          if (child.contains(el) || child.querySelector('input,select,textarea,button')) return false;
+          const target = elementById(child.getAttribute("for"), el);
+          return (!target || target === el || target.contains(el)) &&
+            (child.hasAttribute("for") || fieldsWithin(node).length === 1);
+        });
+        if (label) { bits.push(label.textContent); break; }
+      }
+    }
+    return [...new Set(bits.filter(Boolean))].join(" ");
   };
 
   /**
@@ -167,6 +182,10 @@
   JA.radioGroupSignal = function (radios) {
     const first = radios[0];
     const bits = [];
+    const question = first.closest('.application-question')?.querySelector('.application-label');
+    if (question) return question.textContent;
+    const ashby = first.closest('.ashby-application-form-field-entry')?.querySelector('.ashby-application-form-question-title');
+    if (ashby) return ashby.textContent;
 
     const fieldset = first.closest("fieldset");
     if (fieldset) {

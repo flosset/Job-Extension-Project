@@ -16,13 +16,13 @@
     for (const candidate of candidates) {
       const text = (candidate || "")
         .replace(/\s+/g, " ")
-        .replace(/\s*\*+\s*$/, "") // drop a trailing required marker
+        .replace(/\s*[*✱]+\s*$/, "") // drop a trailing required marker
         .trim();
       if (text) return text.slice(0, 60);
     }
     const fallback = el.getAttribute("name") || el.id || "";
     const cleaned = fallback.replace(/[_\-]+/g, " ").trim();
-    return cleaned ? cleaned.slice(0, 60) : null;
+    return cleaned && !/[\[\]{}]|[a-z][A-Z]|\d{4}/.test(fallback) ? cleaned.slice(0, 60) : "Unlabelled question";
   }
 
   /** Where to flash for a control: a hidden radio/checkbox lives in a label. */
@@ -40,12 +40,15 @@
     const fieldset = first.closest ? first.closest("fieldset") : null;
     const legend = fieldset ? fieldset.querySelector("legend") : null;
     const own = legend ? legend.textContent : "";
-    const raw = own || (JA.radioGroupSignal ? JA.radioGroupSignal(group) : "");
+    const container = first.closest('.application-question, .ashby-application-form-field-entry, [role="radiogroup"]');
+    const heading = container?.querySelector('.application-label, .ashby-application-form-question-title, legend');
+    const raw = own || heading?.textContent || container?.getAttribute("aria-label") ||
+      (container && JA.labelTextFor(container)) || "";
     const text = (raw || "")
       .replace(/\s+/g, " ")
       .replace(/\s*\*+\s*$/, "")
       .trim();
-    return text ? text.slice(0, 60) : describeField(first);
+    return text ? text.slice(0, 60) : "Unlabelled question";
   }
 
   /** Is a control actually exposed to the user (or styled away)? */
@@ -89,20 +92,18 @@
     const seen = new Set();
 
     const push = (label, required, el) => {
-      if (!label || seen.has(label)) return false;
-      seen.add(label);
+      if (!label || seen.has(el)) return;
+      seen.add(el);
       const target = flashTargetFor(el);
       out.push({
         label,
         required: !!required,
         ref: JA.refFor ? JA.refFor(target) : null
       });
-      return out.length >= 40;
     };
 
     // Text / select / contenteditable controls we could not answer.
     for (const el of pool.filter(JA.isFillable)) {
-      if (out.length >= 40) break;
       if (JA.isComboboxInput && JA.isComboboxInput(el)) continue; // no false noise
       // A field that is EMPTY now is reported whether or not we claimed it.
       // Skipping everything in `used` (as this used to) hid the one case that
@@ -110,30 +111,26 @@
       // a portal quirk, or our own validation nudge. It was skipped by `used`
       // and never reached the isFilled check, so the popup said "nothing left"
       // while the form would submit that field blank.
-      if (JA.isFilled(el)) continue;
-      if (push(describeField(el), JA.isRequiredField(el), el)) break;
+      if (JA.isFilled(el) && el.getAttribute("aria-invalid") !== "true" && (!el.validity || el.validity.valid)) continue;
+      push(describeField(el), JA.isRequiredField(el), el);
     }
 
     // Custom dropdowns are questions; their search inputs are not answers.
     for (const control of JA.comboControls ? JA.comboControls() : []) {
-      if (out.length >= 40) break;
       const input = JA.comboInput(control);
-      if (!input || input.disabled || control.getAttribute("aria-disabled") === "true" ||
-          !JA.isVisible(control) || JA.comboValueEl(control) ||
-          control.querySelector('[class*="multi-value"], [class*="multiValue"]')) continue;
+      const valid = control.getAttribute("aria-invalid") !== "true" && input?.getAttribute("aria-invalid") !== "true";
+      if (input?.disabled || control.disabled || control.getAttribute("aria-disabled") === "true" ||
+          !JA.isVisible(control) || (valid && JA.comboValueEl(control))) continue;
       const label = JA.comboLabel(control).slice(0, 60);
-      if (push(label, JA.comboRequired(control), control)) break;
+      push(label || "Unlabelled question", JA.comboRequired(control), control);
     }
 
     // Radio groups: one entry per QUESTION, never one per button.
-    if (JA.radioGroups && out.length < 40) {
+    if (JA.radioGroups) {
       for (const group of JA.radioGroups()) {
-        if (out.length >= 40) break;
-        if (group.some((r) => used.has(r) || r.checked)) continue;
+        if (group.some((r) => r.checked)) continue;
         if (!groupVisible(group)) continue;
-        if (push(describeRadioGroup(group), groupRequired(group), group[0])) {
-          break;
-        }
+        push(describeRadioGroup(group), groupRequired(group), group[0]);
       }
     }
 
@@ -141,31 +138,24 @@
     // per QUESTION, reported by its readable anchor text. Without this they are
     // invisible to the report — and therefore to the learner, which only watches
     // what the report hands it.
-    if (JA.yesNoPairs && out.length < 40) {
+    if (JA.yesNoPairs) {
       for (const pair of JA.yesNoPairs()) {
-        if (out.length >= 40) break;
-        if (used.has(pair.buttons[0])) continue;
         if (JA.yesNoAnswer && JA.yesNoAnswer(pair)) continue; // already answered
         if (!groupVisible(pair.buttons)) continue;
-        if (push(pair.question, JA.isRequiredField(pair.buttons[0]), pair.buttons[0])) {
-          break;
-        }
+        push(pair.question, JA.isRequiredField(pair.buttons[0]), pair.buttons[0]);
       }
     }
 
     // Standalone checkboxes (consent boxes, "currently work here", …).
-    if (out.length < 40) {
-      for (const el of pool) {
-        if (out.length >= 40) break;
-        if (el.type !== "checkbox") continue;
-        if (used.has(el) || el.checked) continue;
-        if (JA.isComboboxInput && JA.isComboboxInput(el)) continue;
-        if (!groupVisible([el])) continue;
-        if (push(describeField(el), JA.isRequiredField(el), el)) break;
-      }
+    for (const el of pool) {
+      if (el.type !== "checkbox") continue;
+      if (el.checked) continue;
+      if (JA.isComboboxInput && JA.isComboboxInput(el)) continue;
+      if (!groupVisible([el])) continue;
+      push(describeField(el), JA.isRequiredField(el), el);
     }
 
-    return out;
+    return out.sort((a, b) => Number(b.required) - Number(a.required)).slice(0, 40);
   }
 
   /** Count the form fields present in this frame (diagnostic). */

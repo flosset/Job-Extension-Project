@@ -47,7 +47,9 @@ function select(w, input, text) {
   assert(!p.store.learnedAnswers?.candidates.length, "search text is never learned");
   select(p.w, p.input, "LinkedIn");
   select(p.w, p.w.document.getElementById("gender"), "Woman");
-  await sleep(650);
+  const deadline = Date.now() + 10000;
+  while (!p.store.learnedAnswers?.candidates.length && Date.now() < deadline) await sleep(25);
+  assert(p.store.learnedAnswers?.candidates.length, "the committed answer reaches storage");
   assert.deepStrictEqual(JSON.parse(JSON.stringify(p.store.learnedAnswers.candidates.map(c => [c.question, c.value]))),
     [[question, "LinkedIn"]], "only the committed, non-demographic answer is offered");
   assert(!p.J.report.collectUnfilled(new Set()).some(e => e.label === question), "answered dropdown disappears from missing list");

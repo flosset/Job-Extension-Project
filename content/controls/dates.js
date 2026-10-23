@@ -9,6 +9,58 @@
   /** Profile keys whose value is a date. */
   JA.DATE_KEYS = ["graduationDate", "startDate"];
 
+  /** Education widgets can split one date across a month choice and year box. */
+  JA.fillSplitDate = async function (root, keywords, value, used) {
+    const parts = JA.toIsoParts(value);
+    if (!parts) return null;
+    const matches = el => JA.matchesKeywords(JA.normalize(JA.getSignal(el)), keywords);
+    const years = JA.fieldPool(root).filter(el => el.tagName === "INPUT" && !JA.isComboboxInput(el) &&
+      JA.isFillable(el) && matches(el) && /\byear\b/.test(JA.normalize(JA.getSignal(el))) && el.getAttribute("role") !== "spinbutton");
+    const months = JA.comboControls(root).filter(control => matches(JA.comboInput(control) || control) &&
+      /\bmonth\b/.test(JA.normalize(JA.comboLabel(control))));
+    if (!years.length || !months.length) return null;
+    let ok = true;
+    for (const year of years) {
+      if (!used.has(year) && !JA.isFilled(year)) { JA.assignValue(year, String(parts.year)); used.add(year); }
+      ok = JA.valueCommitted(year, String(parts.year)) && ok;
+    }
+    if (!/^\d{4}$/.test(String(value).trim())) {
+      for (const month of months) {
+        if (!JA.comboValueEl(month)) ok = await JA.chooseComboControl(month, JA.MONTH_NAMES[parts.month - 1], used) && ok;
+      }
+    }
+    await JA.sleep(80);
+    return ok && years.every(year => JA.valueCommitted(year, String(parts.year)));
+  };
+
+  /** Workday dates are separate keyboard-driven month/year controls. */
+  JA.fillSegmentedDate = async function (root, keywords, value, used) {
+    const parts = JA.toIsoParts(value);
+    if (!parts) return null;
+    for (const year of JA.queryAll('input[role="spinbutton"][id$="dateSectionYear-input"]', root)) {
+      let group = year.parentElement;
+      while (group && group !== root && !JA.matchesKeywords(JA.normalize(JA.getSignal(group)), keywords)) {
+        group = group.parentElement;
+      }
+      if (!group || !JA.matchesKeywords(JA.normalize(JA.getSignal(group)), keywords)) continue;
+      const segments = JA.queryAll('input[role="spinbutton"]', group);
+      if (segments.filter(el => /dateSectionYear-input$/.test(el.id)).length !== 1) continue;
+      if (segments.some(el => used.has(el) || !JA.isFillable(el))) continue;
+      for (const el of segments) {
+        const token = /dateSectionMonth-input$/.test(el.id) ? String(parts.month).padStart(2, "0") : String(parts.year);
+        if (JA.isFilled(el)) continue;
+        JA.typeIntoElement(el, token);
+        el.blur();
+        if (JA.fillAttempts) JA.fillAttempts.set(el, token);
+        used.add(el);
+      }
+      await JA.sleep(80);
+      return segments.every(el => JA.valueCommitted(el,
+        /dateSectionMonth-input$/.test(el.id) ? String(parts.month).padStart(2, "0") : String(parts.year)));
+    }
+    return null;
+  };
+
   /** Does a <select> look like a month picker, a year picker, or neither? */
   function dateKind(select) {
     const texts = Array.from(select.options).map((o) => JA.normalize(o.textContent));

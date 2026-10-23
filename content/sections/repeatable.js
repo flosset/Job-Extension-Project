@@ -20,9 +20,12 @@
   function matchesIn(node, keywords) {
     if (!keywords || !keywords.length) return false;
     if (JA.findFieldByKeywords && JA.findFieldByKeywords(node, keywords)) return true;
+    if (JA.radioGroups && JA.radioGroups().some(group => group.every(el => node.contains(el)) &&
+        JA.matchesKeywords(JA.normalize(JA.radioGroupSignal(group)), keywords))) return true;
     return !!(
-      JA.comboControlForKeywords &&
-      JA.comboControlForKeywords(keywords, new Set(), node)
+      JA.comboControls &&
+      JA.comboControls(node).some(control => JA.matchesKeywords(
+        JA.normalize(JA.getSignal(JA.comboInput(control) || control)), keywords))
     );
   }
 
@@ -35,6 +38,7 @@
     let node = field.parentElement;
     let depth = 0;
     while (node && depth < 18) {
+      if (node.matches('form,body,html,main')) break;
       if (hasAll(node)) return node;
       node = node.parentElement;
       depth++;
@@ -43,6 +47,7 @@
     node = field.parentElement;
     depth = 0;
     while (node && depth < 12) {
+      if (node.matches('form,body,html,main')) break;
       if (groups.some((g) => matchesIn(node, g))) return node;
       node = node.parentElement;
       depth++;
@@ -56,12 +61,15 @@
     // JA.queryAll so a section rendered inside an open shadow root is found too.
     const fields = JA.queryAll("input, textarea, select");
     for (const field of fields) {
+      // A question about education/employment is not the school/title field.
+      const label = field.getAttribute("aria-label") || JA.labelTextFor(field);
+      if (label.length > 100 || /^(are|is|do|does|did|have|has|will|would|can|could|should)\b/i.test(label.trim())) continue;
       const signal = JA.normalize(JA.getSignal(field));
       if (!JA.matchesKeywords(signal, section.anchor)) continue;
       const block = JA.smallestBlockFor(field, section);
       if (block && blocks.indexOf(block) === -1) blocks.push(block);
     }
-    return blocks;
+    return blocks.filter(block => !blocks.some(other => other !== block && block.contains(other)));
   };
 
   /** Read a control's label text ("Delete", "Add Another", …). */
@@ -183,6 +191,7 @@
    */
   async function fillBlock(block, entry, section, used) {
     let count = 0;
+    let incomplete = false;
     const yearMode = section.dateFormat === "year";
 
     for (const key of Object.keys(section.fields)) {
@@ -198,12 +207,13 @@
       let ok = false;
       try {
         ok = JA.fillFieldByKeywords
-          ? await JA.fillFieldByKeywords(block, section.fields[key], text, { used })
+          ? await JA.fillFieldByKeywords(block, section.fields[key], text, { used, dateValue: key === "from" || key === "to" ? value : null })
           : false;
       } catch (err) {
         ok = false;
       }
       if (ok) count++;
+      else incomplete = true;
     }
 
     if (typeof entry.current === "boolean") {
@@ -221,7 +231,7 @@
         }
       }
     }
-    return count;
+    return { filled: count, incomplete };
   }
 
   /**
@@ -293,12 +303,17 @@
     }
 
     const trim = !!(opts && opts.trim);
-    const blocks = await ensureBlocks(section, entries.length);
+    let blocks = JA.sectionBlocks(section);
 
     let filled = 0;
+    let incomplete = false;
     for (let i = 0; i < entries.length; i++) {
-      if (!blocks[i]) continue;
-      filled += await fillBlock(blocks[i], entries[i], section, used);
+      // Some portals validate the preceding row before allowing Add another.
+      if (!blocks[i]) blocks = await ensureBlocks(section, i + 1);
+      if (!blocks[i]) { incomplete = true; continue; }
+      const part = await fillBlock(blocks[i], entries[i], section, used);
+      filled += part.filled;
+      incomplete = incomplete || part.incomplete;
     }
 
     // Surplus blocks beyond the profile's entries: always counted, deleted
@@ -313,14 +328,7 @@
       if (await JA.deleteSectionBlock(extra, section)) removed++;
     }
 
-    if (used) {
-      for (const block of blocks) {
-        for (const el of block.querySelectorAll("input, textarea, select")) {
-          used.add(el);
-        }
-      }
-    }
-    return { filled, removed, surplus, skipped: filled === 0 };
+    return { filled, removed, surplus, skipped: filled === 0 || incomplete };
   }
 
   /**
@@ -361,6 +369,8 @@
    */
   JA.fillRepeatableSections = async function (profile, used, opts) {
     const total = { filled: 0, removed: 0, surplus: 0, unfilled: [] };
+    if (window.top !== window && !JA.fieldPool().some(JA.isFillable) &&
+        !JA.comboControls().some(JA.isVisible)) return total;
     for (const mapping of SECTION_ENTRIES) {
       const section = JA.SECTIONS[mapping.section];
       const raw = profile[mapping.profile];

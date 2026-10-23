@@ -249,6 +249,8 @@
   }
 
   async function run() {
+    JA.fillAttempts = new Map();
+    JA.comboAttempts = new Map();
     let profile;
     try {
       const data = await chrome.storage.local.get(STORAGE_KEY);
@@ -291,18 +293,7 @@
       }
     }
 
-    // Run the fill; if nothing matched, the form may still be hydrating (React
-    // SPAs such as Greenhouse/Workday render late), so watch the DOM briefly
-    // and retry before reporting.
-    let result = fillEverything(profile, used);
-    if (result.filled === 0 && widgets === 0) {
-      result = await waitForFields(profile, 2000, used);
-    }
-    filled += result.filled;
-
-    // Custom react-select style dropdowns are not <select> elements.
-    filled += await JA.fillCombos(profile, used);
-
+    // Entry values must claim history controls before the page-wide profile keys.
     // Repeatable sections (Workday "Work Experience", "Education"): reuse +
     // overwrite, and add when needed. Surplus blocks are only REMOVED when the
     // user explicitly asked for it — a resume-parser leftover and an entry they
@@ -325,6 +316,18 @@
         /* a stubborn section must not abort the rest */
       }
     }
+
+    // Run the fill; if nothing matched, the form may still be hydrating (React
+    // SPAs such as Greenhouse/Workday render late), so watch the DOM briefly
+    // and retry before reporting.
+    let result = fillEverything(profile, used);
+    if (result.filled === 0 && filled === 0) {
+      result = await waitForFields(profile, 2000, used);
+    }
+    filled += result.filled;
+
+    // Custom react-select style dropdowns are not <select> elements.
+    filled += await JA.fillCombos(profile, used);
 
     // Resume file: attach the stored resume when we have one, otherwise flag
     // the drop zone with a flashing outline (feature 3).
@@ -351,8 +354,17 @@
       revealed = await JA.revealComboOptions(5);
     }
 
-    // Collected before `revealed` is appended: a revealed dropdown's label is
-    // the option list, not a question, so it must never become a learned answer.
+    await JA.sleep(80);
+    // Count only writes that survived rendering, plus committed non-text controls.
+    const verified = new Set([...JA.fillAttempts].filter(([el, value]) => JA.valueCommitted(el, value)).map(([el]) => el));
+    for (const [control, value] of JA.comboAttempts) {
+      if (control.isConnected && await JA.comboCommitted(control, 0, value)) verified.add(control);
+    }
+    for (const pair of JA.yesNoPairs ? JA.yesNoPairs() : []) {
+      if (pair.buttons.some(el => used.has(el)) && JA.yesNoAnswer(pair)) verified.add(pair.buttons[0]);
+    }
+    filled = verified.size;
+    // Option previews must never become learned question text.
     const missing = JA.report.collectUnfilled(used);
     const revealedRefs = new Set(revealed.map(entry => entry.ref).filter(Boolean));
     const unfilled = missing.filter(entry => !revealedRefs.has(entry.ref)).concat(revealed).slice(0, 40);

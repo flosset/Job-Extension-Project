@@ -17,7 +17,7 @@
     if (!JA.isFilled(el) && JA.typeIntoElement) {
       JA.typeIntoElement(el, value);
     }
-    return JA.isFilled(el);
+    return JA.valueCommitted(el, value);
   }
 
   /**
@@ -31,8 +31,38 @@
     const scope = root || document;
     const used = opts.used || new Set();
 
+    if (JA.fillSplitDate) {
+      const date = await JA.fillSplitDate(scope, keywords, opts.dateValue || value, used);
+      if (date !== null) return date;
+    }
+
+    if (JA.fillSegmentedDate) {
+      const date = await JA.fillSegmentedDate(scope, keywords, value, used);
+      if (date !== null) return date;
+    }
+
+    for (const group of JA.radioGroups ? JA.radioGroups() : []) {
+      if (!group.every(el => scope.contains(el)) || group.some(el => used.has(el) || el.checked)) continue;
+      if (!JA.matchesKeywords(JA.normalize(JA.radioGroupSignal(group)), keywords)) continue;
+      const option = JA.pickPolaritySafe(group.map(el => ({ el,
+        text: JA.valueKey(el.closest("label")?.textContent || el.getAttribute("aria-label") || el.value),
+        value: JA.valueKey(el.value) })), value);
+      if (!option) return false;
+      JA.selectRadio(option);
+      await JA.sleep(80);
+      if (!option.checked) return false;
+      group.forEach(el => used.add(el));
+      return true;
+    }
+
     // 1. Custom (react-select style) dropdown inside the scope.
     if (JA.comboControlForKeywords && JA.chooseComboByKeywords) {
+      const answered = JA.comboControls(scope).find(control => JA.comboValueEl(control) &&
+        JA.matchesKeywords(JA.normalize(JA.getSignal(JA.comboInput(control) || control)), keywords));
+      if (answered) {
+        const selected = JA.comboValueEl(answered);
+        return !!JA.matchOptionElement([{ textContent: selected.value || selected.textContent, getAttribute: () => "" }], value);
+      }
       if (JA.comboControlForKeywords(keywords, used, scope)) {
         return await JA.chooseComboByKeywords(keywords, value, used, scope);
       }
@@ -41,7 +71,9 @@
     // 2. Native <select> / text input / contenteditable.
     const el = JA.findFieldByKeywords(scope, keywords, opts);
     if (!el) return false;
-    const filled = fillElement(el, value);
+    const written = fillElement(el, value);
+    await JA.sleep(80);
+    const filled = written && JA.valueCommitted(el, el.tagName === "SELECT" ? el.value : value);
     // Claim it when it took the value: a later key in the same block — or a
     // later pass — must not be handed a control this one already answered.
     if (filled) used.add(el);

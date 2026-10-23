@@ -53,8 +53,8 @@
   /** Click a radio (so the portal registers it), then fire form events. */
   JA.selectRadio = function (radio) {
     JA.mouseClick(radio);
-    radio.checked = true;
     JA.dispatchFormEvents(radio);
+    if (JA.fillAttempts) JA.fillAttempts.set(radio, true);
   };
 
   /** Fill every Yes/No radio group in the profile; returns how many. */

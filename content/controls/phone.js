@@ -14,7 +14,7 @@
   // "code" is required: a plain "Country" label means the ADDRESS country, and
   // claiming that would fill "+1" into a field the user expects to say "US".
   const COUNTRY_KEYWORDS = [
-    "country code", "country calling code", "calling code", "dial code",
+    "country code", "country phone code", "country calling code", "calling code", "dial code",
     "dialling code", "dialing code", "phone code", "phone prefix",
     "dial prefix", "isd code", "country dial", "country prefix"
   ];
@@ -136,7 +136,7 @@
     if (!parts || (!parts.digits && !parts.country)) return result;
 
     const fields = (pool && pool.length ? pool : JA.fieldPool()).filter(
-      (el) => JA.isFillable(el) && !JA.isFilled(el)
+      (el) => JA.isFillable(el)
     );
 
     const country = fields.find(isCountryControl);
@@ -148,7 +148,7 @@
     if (!number) return result;
     result.recognised = true;
 
-    if (parts.country) {
+    if (parts.country && !JA.isFilled(country) && !JA.isComboboxInput(country)) {
       try {
         if (country.tagName === "SELECT") {
           const option = optionForCode(country, parts.country);
@@ -167,7 +167,7 @@
       }
     }
 
-    if (parts.national) {
+    if (parts.national && !JA.isFilled(number)) {
       try {
         JA.assignValue(number, parts.national);
         result.national = true;

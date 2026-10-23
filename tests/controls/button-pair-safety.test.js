@@ -76,6 +76,10 @@ function buildYesNo(question, insideForm) {
     b.type = "submit";                 // the awkward truth
     b.setAttribute("aria-pressed", "false");
     b.textContent = t;
+    b.addEventListener("click", () => {
+      box.querySelectorAll("button").forEach(button => button.setAttribute("aria-pressed", "false"));
+      b.setAttribute("aria-pressed", "true");
+    });
     box.appendChild(b);
   });
   field.appendChild(label);

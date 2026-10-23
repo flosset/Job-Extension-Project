@@ -70,6 +70,7 @@
     }
     select.selectedIndex = option.index;
     JA.dispatchFormEvents(select);
+    if (JA.fillAttempts) JA.fillAttempts.set(select, option.value);
   };
 
   // --- Field injection -----------------------------------------------------
@@ -132,6 +133,21 @@
     } else {
       JA.injectValue(el, value);
     }
+    if (JA.fillAttempts && !(JA.isComboboxInput && JA.isComboboxInput(el))) {
+      JA.fillAttempts.set(el, JA.adaptValueForInput(el, value));
+    }
+  };
+
+  /** Re-read after framework rendering; a write alone is not a committed answer. */
+  JA.valueCommitted = function (el, value) {
+    if (!el.isConnected || el.getAttribute("aria-invalid") === "true") return false;
+    if (el.validity && !el.validity.valid) return false;
+    if (typeof value === "boolean") return el.checked === value;
+    const actual = el.isContentEditable ? el.textContent : el.value;
+    if (el.getAttribute("role") === "spinbutton" && /^\d+$/.test(actual || "") && /^\d+$/.test(String(value))) {
+      return Number(actual) === Number(value);
+    }
+    return String(actual || "").trim() === String(JA.adaptValueForInput(el, value)).trim() && JA.isFilled(el);
   };
 
   /** Assign a value to a field, choosing the right <option> for selects. */
@@ -140,10 +156,10 @@
       const option = JA.findOptionForValue(el, value);
       if (!option) return false;
       JA.selectOption(el, option);
-      return true;
+      return JA.valueCommitted(el, option.value);
     }
     JA.assignValue(el, value);
-    return true;
+    return JA.valueCommitted(el, value);
   };
 
   /** Tick/untick a checkbox the way a framework will actually notice. */
@@ -153,5 +169,6 @@
       el.checked = checked;
       JA.dispatchFormEvents(el);
     }
+    if (JA.fillAttempts) JA.fillAttempts.set(el, checked);
   };
 })();

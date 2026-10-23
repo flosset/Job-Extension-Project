@@ -72,6 +72,12 @@ function loadPage(bodyHtml, storage) {
     },
     runtime: { sendMessage: () => {} }
   };
+  window.document.querySelectorAll('.input-yesno button').forEach(button => {
+    button.addEventListener("click", () => {
+      button.parentElement.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", "false"));
+      button.setAttribute("aria-pressed", "true");
+    });
+  });
   window.eval(SOURCE);
   return { window, document: window.document, store, JA: window.__JobAutofill };
 }

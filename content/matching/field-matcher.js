@@ -24,9 +24,11 @@
     );
     for (const el of els) {
       if (opts.used && opts.used.has(el)) continue;
+      if (!opts.type && !JA.isFillable(el)) continue;
       if (opts.tagName && el.tagName !== opts.tagName) continue;
       if (opts.type && (el.type || "").toLowerCase() !== opts.type) continue;
       if (!opts.type && JA.isComboboxInput && JA.isComboboxInput(el)) continue;
+      if (el.matches('[role="spinbutton"][id*="dateSection"]')) continue;
       if (JA.matchesKeywords(JA.normalize(JA.getSignal(el)), keywords)) return el;
     }
     return null;

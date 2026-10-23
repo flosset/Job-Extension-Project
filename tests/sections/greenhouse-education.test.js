@@ -91,6 +91,7 @@ function fixtureHtml(opts) {
       <label for="fn">First Name</label><input id="fn" name="first_name" />
       <label for="ln">Last Name</label><input id="ln" name="last_name" />
     </div>
+    <div class="application-questions"><label>Are you currently a student at an accredited college or university based in North America?<input></label></div>
   </form>
   <script>
     window.__addClicks = 0;
@@ -139,9 +140,16 @@ function fixtureHtml(opts) {
     // counting how many times it was asked to.
     document.getElementById("add-another").addEventListener("click", function (e) {
       e.preventDefault();
+      if (Array.from(document.querySelectorAll('.education-block')).some(function (block) {
+        return block.querySelectorAll('.select__single-value').length < 3 ||
+          Array.from(block.querySelectorAll('input[name$="_year"]')).some(function (input) { return !input.value; });
+      })) return;
       window.__addClicks++;
       var source = document.getElementById("education-0");
       var copy = source.cloneNode(true);
+      copy.querySelectorAll('.select__single-value').forEach(function (el) { el.remove(); });
+      copy.querySelectorAll('input').forEach(function (el) { el.value = ''; });
+      copy.querySelectorAll('.cb-menu').forEach(function (el) { el.innerHTML = ''; });
       copy.id = "education-copy-" + window.__addClicks;
       // A real framework re-renders the block, so ids AND the labels that point
       // at them move together.
@@ -256,6 +264,7 @@ const FULL_NAME = { firstName: "Jane", lastName: "Doe" };
   // ---- E. three entries: add exactly what is missing, fill all three ----
   const e = await pageWith(
     Object.assign({
+      school: "Other College", degree: "Master's Degree", major: "Mathematics",
       educations: [
         EDU("State University", "Bachelor's Degree", "Computer Science", "2019", "2023"),
         EDU("Other College", "Master's Degree", "Mathematics", "2015", "2018"),

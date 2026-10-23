@@ -43,13 +43,6 @@
   const AFFIRMATIVE = /^(yes|y|true|i agree|agree|confirm)$/;
   const NEGATIVE = /^(no|n|false|disagree|decline)$/;
 
-  /**
-   * Where we remember which side of a pair was chosen. Set on OUR press and
-   * stripped by the widget when it re-renders, so it never fights the portal's
-   * own state — it only fills the gap when the portal has none.
-   */
-  const DATA_CHOSEN = "data-ja-yesno";
-
   /** Is this element a button we may consider at all? */
   function isButton(el) {
     if (!el || !el.tagName) return false;
@@ -255,11 +248,6 @@
       } else {
         button.click();
       }
-      // Reflect the pressed state the way the widget itself does, so a re-read
-      // sees the answer even if the portal is slow to re-render. Our own marker
-      // covers a portal that never sets aria-pressed at all.
-      button.setAttribute("aria-pressed", "true");
-      markChosen(button);
       return true;
     } catch (err) {
       return false;
@@ -328,10 +316,7 @@
   /**
    * The answer a pair currently shows, as text ("Yes" / "No" / "").
    *
-   * Reads the widget's own pressed state first. Falls back to the last button
-   * WE know was chosen — on a real page the portal sets aria-pressed itself, but
-   * a portal that does not (or a re-render that clears it) would otherwise look
-   * unanswered, and we would re-offer a question the user already answered.
+   * Read the widget's own state; extension markers cannot prove commitment.
    */
   JA.yesNoAnswer = function (pair) {
     if (!pair || !pair.buttons) return "";
@@ -342,17 +327,8 @@
     );
     const first = pressed[0];
     if (first) return String(first.textContent || "").trim();
-    const remembered = pair.buttons.filter((b) => b.getAttribute(DATA_CHOSEN) === "1")[0];
-    return remembered ? String(remembered.textContent || "").trim() : "";
+    return "";
   };
-
-  /** Record which side of a pair was chosen, in a way a re-render cannot erase. */
-  function markChosen(button) {
-    const pair = JA.yesNoPairFor(button);
-    if (!pair) return;
-    pair.buttons.forEach((b) => b.removeAttribute(DATA_CHOSEN));
-    button.setAttribute(DATA_CHOSEN, "1");
-  }
 
   /**
    * Fill every recognised Yes/No pair whose question matches a profile key or an

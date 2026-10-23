@@ -83,6 +83,9 @@
       return { role: clean(at[1]), company: isVendor(company) ? "" : company };
     }
 
+    const lever = /(^|\.)lever\.co$/i.test(location.hostname) && text.match(/^(.+?) - (.+)$/);
+    if (lever) return { company: clean(lever[1]), role: clean(lever[2]) };
+
     const parts = text
       .split(/\s+[|–—-]\s+/)
       .map(clean)
@@ -112,10 +115,12 @@
   }
 
   /** First <h1>/[role=heading] that reads like a job title, not a button. */
-  function headingRole() {
-    const nodes = document.querySelectorAll("h1, [role='heading']");
+  function headingRole(company) {
+    const nodes = document.querySelectorAll('.posting-headline h2, .posting-header h2, .job-details__title, [data-automation-id="jobPostingHeader"], h1, [role="heading"]');
     for (const node of nodes) {
+      if (!JA.isVisible(node)) continue;
       const text = clean(node.textContent);
+      if (JA.normalize(text) === JA.normalize(company)) continue;
       if (text.length < 3 || text.length > 90) continue;
       if (/^(apply|apply now|sign in|log in|login|search|results|home)$/i.test(text)) continue;
       if (isVendor(text)) continue;
@@ -130,6 +135,7 @@
       '[class*="company" i], [class*="employer" i], [data-company]'
     );
     for (const node of nodes) {
+      if (!JA.isVisible(node)) continue;
       if (node.tagName === "INPUT" || node.tagName === "SELECT") continue;
       const text = clean(node.textContent);
       if (text.length < 2 || text.length > 80) continue;
@@ -244,6 +250,20 @@
       return "";
     }
     const host = String(url.hostname || "").toLowerCase();
+    // Workday tenants can be shared HR systems. Corroborate the site's name
+    // with its employer privacy domain before falling back to a tenant name.
+    if (/(^|\.)myworkdayjobs\.com$/i.test(host)) {
+      const tokens = url.pathname.toLowerCase().split(/[^a-z0-9]+/);
+      for (const link of document.querySelectorAll('a[href]')) {
+        if (!/privacy/i.test(link.textContent || "")) continue;
+        try {
+          const employer = new URL(link.href).hostname.split('.').slice(-2)[0];
+          if (employer && !isVendor(employer) && tokens.includes(employer)) {
+            return employer.length <= 4 ? employer.toUpperCase() : employer[0].toUpperCase() + employer.slice(1);
+          }
+        } catch (err) { /* an invalid link is not employer evidence */ }
+      }
+    }
     let source = "";
     for (const rule of TENANT_HOSTS) {
       if (!rule.re.test(host)) continue;
@@ -319,7 +339,7 @@
     // board's own suffix ("Careers", "Jobs at …").
     const role =
       clean(typeof title === "string" ? title : "") ||
-      headingRole() ||
+      headingRole(company) ||
       fromOg.role ||
       fromTitle.role;
 

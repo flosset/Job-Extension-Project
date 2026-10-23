@@ -239,6 +239,12 @@ const profile = { workExperiences: ENTRIES };
   t("G2: a claimed field is not filled twice", g2 === false, g2);
   t("G3: and its value is untouched", gField.value === "Engineer II", gField.value);
 
+  const form = document.createElement("form");
+  form.innerHTML = '<label>School<input></label><label>Degree<input></label><label>Start year<input></label><label>Email<input type="email"></label>';
+  document.body.appendChild(form);
+  t("H: unrelated application questions never make the whole form a history block",
+    !JA.sectionBlocks(JA.SECTIONS.education).includes(form));
+
   console.log(
     `\n${fail === 0 ? "REPEATABLE-SAFETY E2E PASS" : "REPEATABLE-SAFETY E2E FAIL"} (${pass} passed, ${fail} failed)`
   );
