@@ -96,6 +96,8 @@
   function neighbours(node, other) {
     const ancestor = commonAncestor(node, other);
     if (!ancestor) return false;
+    // Workday puts both halves under the same named phone group, several wrappers deep.
+    if (node.id.includes("--") && node.id.split("--")[0] === other.id.split("--")[0]) return true;
     return hopsTo(node, ancestor) <= 3 && hopsTo(other, ancestor) <= 3;
   }
 

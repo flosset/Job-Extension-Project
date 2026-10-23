@@ -51,6 +51,7 @@
     if (!el) return false;
     if (el.required) return true;
     if (el.getAttribute("aria-required") === "true") return true;
+    if (el.matches('[role="spinbutton"][id*="dateSection"]') && /\*/.test(el.closest('fieldset')?.querySelector('legend')?.textContent || "")) return true;
     const text = JA.labelTextFor ? JA.labelTextFor(el) : "";
     for (let node = el.parentElement, depth = 0; node && depth < 6; node = JA.parentOrHost(node), depth++) {
       const labels = Array.from(node.children).filter(child => child.matches('label, .application-label'));

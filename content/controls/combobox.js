@@ -6,6 +6,8 @@
   "use strict";
   const JA = (window.__JobAutofill = window.__JobAutofill || {});
   const selectedInputs = JA.comboSelections || (JA.comboSelections = new WeakMap());
+  const visibleOption = el => JA.isVisible(el) && el.getAttribute("aria-disabled") !== "true" &&
+    el.getAttribute("data-automation-id") !== "selectedItem";
 
   /** Is this input the search box of a custom dropdown? */
   JA.isComboboxInput = function (el) {
@@ -13,6 +15,7 @@
       el.getAttribute("role") === "combobox" ||
       el.getAttribute("aria-autocomplete") === "list" ||
       el.getAttribute("aria-haspopup") === "listbox" ||
+      el.getAttribute("data-uxi-widget-type") === "selectinput" ||
       el.classList.contains("select__input") ||
       !!el.closest('[class*="select__control"]')
     );
@@ -20,9 +23,18 @@
 
   /** All react-select style dropdown controls under `root` (default: page). */
   JA.comboControls = function (root) {
-    const controls = JA.queryAll('[class*="select__control"], button[aria-haspopup="listbox"], [role="combobox"], input[aria-autocomplete="list"]', root || document);
+    const controls = JA.queryAll('[class*="select__control"], button[aria-haspopup="listbox"], [role="combobox"], input[aria-autocomplete="list"], input[data-uxi-widget-type="selectinput"]', root || document);
     return [...new Set(controls.map(el => el.closest('[class*="select__control"]') ||
+      el.closest('[data-automation-id="multiselectInputContainer"]') ||
       (el.tagName === "INPUT" ? el.parentElement : el)))];
+  };
+
+  JA.currentCombo = function (control) {
+    if (control.isConnected) return control;
+    if (control.id) return JA.currentField(control);
+    const input = JA.comboInput(control);
+    const current = input && JA.currentField(input);
+    return current && (current.closest('[class*="select__control"], [data-automation-id="multiselectInputContainer"]') || current.parentElement);
   };
 
   /** Find the un-answered dropdown control whose label matches keywords. */
@@ -86,6 +98,8 @@
 
   /** The element that shows a committed value (absent until one is chosen). */
   JA.comboValueEl = function (control) {
+    control = JA.currentCombo(control);
+    if (!control) return null;
     const value = control.querySelector(
       '[class*="select__single-value"], [class*="singleValue"], [class*="multi-value"], [class*="multiValue"], [data-automation-id="selectedItem"]'
     );
@@ -105,11 +119,13 @@
   JA.comboCommitted = async function (control, timeoutMs, expected) {
     const deadline = Date.now() + timeoutMs;
     do {
+      control = JA.currentCombo(control);
+      if (!control) return false;
       const selected = JA.comboValueEl(control);
       const input = JA.comboInput(control);
       const valid = control.getAttribute("aria-invalid") !== "true" && input?.getAttribute("aria-invalid") !== "true";
       if (valid && selected && (!expected || JA.matchOptionElement([{
-        textContent: selected.value || selected.textContent, getAttribute: () => ""
+        textContent: selected.tagName === "INPUT" ? selected.value : selected.textContent, getAttribute: () => ""
       }], expected))) return true;
       if (valid && expected && input && input.matches('.ashby-application-form-input-autocomplete') &&
           input.getAttribute("aria-expanded") === "false" && JA.valueKey(input.value) === JA.valueKey(expected)) {
@@ -123,7 +139,7 @@
 
   /** All currently rendered dropdown options. */
   JA.optionElements = function () {
-    return JA.queryAll('[class*="select__option"], [role="option"]').filter(JA.isVisible);
+    return JA.queryAll('[class*="select__option"], [role="option"]').filter(visibleOption);
   };
 
   /**
@@ -135,6 +151,8 @@
    * to a unique visible portal menu when no ownership link is available.
    */
   JA.optionsForControl = function (control) {
+    control = JA.currentCombo(control);
+    if (!control) return [];
     const input = JA.comboInput(control) || control;
     const ids = [...new Set([input, control].flatMap(el =>
       ((el.getAttribute("aria-controls") || "") + " " + (el.getAttribute("aria-owns") || "")).trim().split(/\s+/)
@@ -143,7 +161,7 @@
       return ids.flatMap(id => {
         const menu = JA.rootOf(control).getElementById(id);
         return menu && JA.isVisible(menu)
-          ? Array.from(menu.querySelectorAll('[class*="select__option"], [role="option"]')).filter(JA.isVisible) : [];
+          ? Array.from(menu.querySelectorAll('[class*="select__option"], [role="option"]')).filter(visibleOption) : [];
       });
     }
     const container =
@@ -154,7 +172,7 @@
       if (container && container.querySelectorAll) {
         const own = Array.from(
           container.querySelectorAll('[class*="select__option"], [role="option"]')
-        ).filter(JA.isVisible);
+        ).filter(visibleOption);
         if (own.length > 0 && JA.comboControls(container).every(candidate => candidate === control)) return own;
       }
     } catch (err) {
@@ -162,6 +180,7 @@
     }
     // A portalled menu without an ownership link is safe only when unique.
     const menus = JA.queryAll('[role="listbox"], [class*="select__menu"]').filter(JA.isVisible)
+      .filter(menu => menu.getAttribute("data-automation-id") !== "selectedItemList")
       .filter(menu => !menu.parentElement?.closest('[role="listbox"], [class*="select__menu"]'));
     return JA.isComboOpen(control) && menus.length === 1
       ? JA.optionElements().filter(option => menus[0].contains(option)) : [];
@@ -169,6 +188,8 @@
 
   /** Is this control's dropdown menu currently open? */
   JA.isComboOpen = function (control) {
+    control = JA.currentCombo(control);
+    if (!control) return false;
     if (control.getAttribute("aria-expanded") === "true") return true;
     const input = JA.comboInput(control);
     if (input && input.getAttribute("aria-expanded") === "true") return true;
@@ -185,6 +206,8 @@
    *   3. if still open, an outside mousedown so react-select blurs and closes.
    */
   JA.closeCombo = async function (control) {
+    control = JA.currentCombo(control);
+    if (!control) return;
     const escape = {
       key: "Escape",
       code: "Escape",
@@ -199,7 +222,10 @@
     if (input) {
       input.dispatchEvent(new KeyboardEvent("keydown", escape));
       if (typeof input.blur === "function") input.blur();
-    } else control.dispatchEvent(new KeyboardEvent("keydown", escape));
+    } else {
+      control.dispatchEvent(new KeyboardEvent("keydown", escape));
+      control.blur();
+    }
     if (container) container.dispatchEvent(new KeyboardEvent("keydown", escape));
     document.body.dispatchEvent(new KeyboardEvent("keydown", escape));
 
@@ -207,11 +233,13 @@
     if (!JA.isComboOpen(control)) return;
 
     // Multi-select keeps the menu open â€” clicking the control toggles it shut.
-    JA.pressButton(control);
+    JA.pressButton(JA.currentCombo(control));
     await JA.sleep(150);
     if (!JA.isComboOpen(control)) return;
 
-    JA.mouseClick(document.body);
+    const outside = JA.queryAll('h1,h2,h3,[role="heading"]').find(el => el.textContent.trim() && JA.isVisible(el));
+    JA.mouseClick(outside || document.body);
+    await JA.sleep(80);
   };
 
   /**
@@ -245,6 +273,7 @@
 
     try {
       if (input && typeof input.focus === "function") input.focus();
+      else control.focus();
       JA.pressButton(control);
       await JA.waitForOptions(900, control);
 
@@ -452,6 +481,7 @@
       try {
         const input = JA.comboInput(control);
         if (input && typeof input.focus === "function") input.focus();
+        else control.focus();
         JA.pressButton(control);
         const options = await JA.waitForOptions(500, control);
 

@@ -38,19 +38,25 @@
     const parts = JA.toIsoParts(value);
     if (!parts) return null;
     for (const year of JA.queryAll('input[role="spinbutton"][id$="dateSectionYear-input"]', root)) {
-      let group = year.parentElement;
-      while (group && group !== root && !JA.matchesKeywords(JA.normalize(JA.getSignal(group)), keywords)) {
-        group = group.parentElement;
+      let group = year.closest('[data-automation-id="dateInputWrapper"]') || year.parentElement;
+      const legend = group.closest('fieldset')?.querySelector('legend');
+      if (legend && !JA.matchesKeywords(JA.normalize(legend.textContent), keywords)) continue;
+      if (!legend) {
+        while (group && group !== root && !JA.matchesKeywords(JA.normalize(JA.getSignal(group)), keywords)) {
+          group = group.parentElement;
+        }
+        if (!group || !JA.matchesKeywords(JA.normalize(JA.getSignal(group)), keywords)) continue;
       }
-      if (!group || !JA.matchesKeywords(JA.normalize(JA.getSignal(group)), keywords)) continue;
       const segments = JA.queryAll('input[role="spinbutton"]', group);
       if (segments.filter(el => /dateSectionYear-input$/.test(el.id)).length !== 1) continue;
       if (segments.some(el => used.has(el) || !JA.isFillable(el))) continue;
       for (const el of segments) {
         const token = /dateSectionMonth-input$/.test(el.id) ? String(parts.month).padStart(2, "0") : String(parts.year);
         if (JA.isFilled(el)) continue;
-        JA.typeIntoElement(el, token);
-        el.blur();
+        await JA.typeIntoElement(JA.currentField(el), token);
+        await JA.sleep(40);
+        JA.currentField(el)?.blur();
+        await JA.sleep(40);
         if (JA.fillAttempts) JA.fillAttempts.set(el, token);
         used.add(el);
       }

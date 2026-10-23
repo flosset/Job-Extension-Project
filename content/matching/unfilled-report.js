@@ -8,6 +8,10 @@
 
   /** Best human-readable label for a field (aria → label → placeholder → name). */
   function describeField(el) {
+    if (el.matches('[role="spinbutton"][id*="dateSection"]')) {
+      const question = el.closest('fieldset')?.querySelector('legend')?.textContent.replace(/\*/g, '').trim();
+      if (question) return (question + " — " + (el.getAttribute("aria-label") || "Date")).slice(0, 60);
+    }
     const candidates = [
       el.getAttribute("aria-label"),
       JA.labelTextFor ? JA.labelTextFor(el) : "",
@@ -111,7 +115,7 @@
       // a portal quirk, or our own validation nudge. It was skipped by `used`
       // and never reached the isFilled check, so the popup said "nothing left"
       // while the form would submit that field blank.
-      if (JA.isFilled(el) && el.getAttribute("aria-invalid") !== "true" && (!el.validity || el.validity.valid)) continue;
+      if (JA.isFilled(el) && JA.valueCommitted(el, el.isContentEditable ? el.textContent : el.value)) continue;
       push(describeField(el), JA.isRequiredField(el), el);
     }
 

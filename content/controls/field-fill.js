@@ -8,14 +8,14 @@
   const JA = (window.__JobAutofill = window.__JobAutofill || {});
 
   /** Fill one already-found element according to its widget type. */
-  function fillElement(el, value) {
+  async function fillElement(el, value) {
     if (el.tagName === "SELECT") {
       return JA.assignFieldValue(el, value);
     }
     JA.assignValue(el, value);
     // Masked/controlled widgets (e.g. Workday dates) may reject a plain value.
     if (!JA.isFilled(el) && JA.typeIntoElement) {
-      JA.typeIntoElement(el, value);
+      await JA.typeIntoElement(el, value);
     }
     return JA.valueCommitted(el, value);
   }
@@ -61,7 +61,7 @@
         JA.matchesKeywords(JA.normalize(JA.getSignal(JA.comboInput(control) || control)), keywords));
       if (answered) {
         const selected = JA.comboValueEl(answered);
-        return !!JA.matchOptionElement([{ textContent: selected.value || selected.textContent, getAttribute: () => "" }], value);
+        return !!JA.matchOptionElement([{ textContent: selected.tagName === "INPUT" ? selected.value : selected.textContent, getAttribute: () => "" }], value);
       }
       if (JA.comboControlForKeywords(keywords, used, scope)) {
         return await JA.chooseComboByKeywords(keywords, value, used, scope);
@@ -71,7 +71,7 @@
     // 2. Native <select> / text input / contenteditable.
     const el = JA.findFieldByKeywords(scope, keywords, opts);
     if (!el) return false;
-    const written = fillElement(el, value);
+    const written = await fillElement(el, value);
     await JA.sleep(80);
     const filled = written && JA.valueCommitted(el, el.tagName === "SELECT" ? el.value : value);
     // Claim it when it took the value: a later key in the same block — or a

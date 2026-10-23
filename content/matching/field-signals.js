@@ -65,6 +65,8 @@
   /** Collect every human-readable hint attached to a field. */
   JA.getSignal = function (el) {
     const bits = [];
+    const legend = el.closest('fieldset')?.querySelector(':scope > legend');
+    if (legend) bits.push(legend.textContent);
     const ariaLabel = el.getAttribute("aria-label");
     if (ariaLabel) bits.push(ariaLabel);
 
@@ -159,6 +161,10 @@
     JA.labelsFor(el).forEach((label) => bits.push(label.textContent));
     const wrapping = el.closest("label");
     if (wrapping) bits.push(wrapping.textContent);
+    if (!bits.filter(Boolean).length) {
+      const legend = el.closest('fieldset')?.querySelector(':scope > legend');
+      if (legend) bits.push(legend.textContent);
+    }
     if (!bits.filter(Boolean).length) {
       for (let node = el.parentElement, depth = 0; node && depth < 6; node = JA.parentOrHost(node), depth++) {
         const labels = Array.from(node.children).filter(child => child.matches('label, .application-label, [data-automation-id="formLabel"]'));

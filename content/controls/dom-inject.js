@@ -10,11 +10,13 @@
    * (Workday's date fields) ignore a programmatic .value and only respond to
    * keyboard-driven input, so we focus, then insert the text via the browser's
    * own insertText, falling back to a per-character key simulation.
+   * Allow renders between keystrokes so blur commits the widget's current state.
    */
-  JA.typeIntoElement = function (el, text) {
+  JA.typeIntoElement = async function (el, text) {
     const value = String(text == null ? "" : text);
     try {
       if (typeof el.focus === "function") el.focus();
+      await JA.sleep(20);
     } catch (err) {
       /* ignore */
     }
@@ -43,6 +45,8 @@
       setValue("");
       let acc = "";
       for (const ch of value) {
+        el = JA.currentField(el);
+        if (!el) return false;
         acc += ch;
         el.dispatchEvent(new KeyboardEvent("keydown", { key: ch, bubbles: true }));
         setValue(acc);
@@ -50,6 +54,7 @@
           new InputEvent("input", { bubbles: true, inputType: "insertText", data: ch })
         );
         el.dispatchEvent(new KeyboardEvent("keyup", { key: ch, bubbles: true }));
+        await JA.sleep(20);
       }
     }
 
@@ -112,6 +117,7 @@
     // re-assert below is what actually settles the value.
     if (typeof requestAnimationFrame === "function") {
       requestAnimationFrame(() => {
+        if (!el.isConnected) return;
         if (el.value !== adapted) {
           setValue(adapted);
           JA.dispatchFormEvents(el);
@@ -138,10 +144,22 @@
     }
   };
 
+  /** Resolve a replaced control only when its stable ID and kind remain unique. */
+  JA.currentField = function (el) {
+    if (!el || el.isConnected) return el;
+    if (!el.id) return null;
+    const id = el.id.replace(/["\\]/g, "\\$&");
+    const matches = JA.queryAll('[id="' + id + '"]').filter(node => node.tagName === el.tagName && node.type === el.type);
+    return matches.length === 1 ? matches[0] : null;
+  };
+
   /** Re-read after framework rendering; a write alone is not a committed answer. */
   JA.valueCommitted = function (el, value) {
-    if (!el.isConnected || el.getAttribute("aria-invalid") === "true") return false;
+    el = JA.currentField(el);
+    if (!el || el.getAttribute("aria-invalid") === "true") return false;
     if (el.validity && !el.validity.valid) return false;
+    if (el.matches('[role="spinbutton"][id*="dateSection"]') &&
+        JA.isVisible(el.closest('fieldset')?.querySelector('[data-automation-id="inputAlert"]'))) return false;
     if (typeof value === "boolean") return el.checked === value;
     const actual = el.isContentEditable ? el.textContent : el.value;
     if (el.getAttribute("role") === "spinbutton" && /^\d+$/.test(actual || "") && /^\d+$/.test(String(value))) {

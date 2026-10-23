@@ -356,9 +356,10 @@
 
     await JA.sleep(80);
     // Count only writes that survived rendering, plus committed non-text controls.
-    const verified = new Set([...JA.fillAttempts].filter(([el, value]) => JA.valueCommitted(el, value)).map(([el]) => el));
+    const verified = new Set([...JA.fillAttempts].filter(([el, value]) => JA.valueCommitted(el, value)).map(([el]) => JA.currentField(el)));
     for (const [control, value] of JA.comboAttempts) {
-      if (control.isConnected && await JA.comboCommitted(control, 0, value)) verified.add(control);
+      const current = JA.currentCombo(control);
+      if (current && await JA.comboCommitted(current, 0, value)) verified.add(current);
     }
     for (const pair of JA.yesNoPairs ? JA.yesNoPairs() : []) {
       if (pair.buttons.some(el => used.has(el)) && JA.yesNoAnswer(pair)) verified.add(pair.buttons[0]);
