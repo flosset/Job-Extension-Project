@@ -168,10 +168,10 @@ the browser.
 
 ## License and contributions
 
-This project is source available under [PolyForm Noncommercial 1.0.0](LICENSE).
-Uses outside that license require separate permission from the relevant copyright
-holders. For commercial licensing inquiries, contact the repository owner through
-their GitHub profile; opening an issue does not grant permission.
+This project is free software licensed under the
+[GNU General Public License, version 3 only (GPL-3.0-only)](LICENSE.md).
+You may use, modify, and redistribute it, including commercially, under that license.
+It is provided without any warranty; see the license for details.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, pull requests, testing, and packaging.
 Bug reports and sanitized form reproductions are welcome.

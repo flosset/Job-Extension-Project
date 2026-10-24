@@ -1,38 +1,33 @@
 # Contributing
 
 Bug reports, sanitized form reproductions, documentation, and pull requests are welcome.
-This project is source available under the [PolyForm Noncommercial license](LICENSE).
+This project is licensed under the
+[GNU General Public License, version 3 only (GPL-3.0-only)](LICENSE.md).
 Review the license before using or contributing code.
 
-## Ownership and commercial licensing
+## Ownership and contribution licensing
 
-Contributors keep ownership of their contributions and give the project owner
-permission to include them in both the free noncommercial version and separately
-licensed commercial versions. Submitting a contribution does not transfer copyright.
+Contributors keep ownership of their contributions and license them under
+GPL-3.0-only. Submitting a contribution does not transfer copyright or grant
+special permission to relicense it under proprietary terms.
 
 ### Contribution terms
 
 These terms apply to code, documentation, and other original material you
-intentionally submit for inclusion in Private Job Autofill. The project owner is
-the person or entity operating the GitHub account `flosset` for this repository.
+intentionally submit for inclusion in Private Job Autofill.
 
 1. **Ownership.** You retain copyright in your contributions and may continue to
    use and license your own work elsewhere.
-2. **Permission.** You grant the project owner a worldwide, nonexclusive,
-   perpetual, irrevocable, royalty-free copyright license to use, copy, modify,
-   display, distribute, and sublicense your contributions and modified versions
-   as part of this project. This includes releasing them under the project's
-   noncommercial license and under separate commercial or proprietary licenses,
-   and charging for those licenses without owing you royalties. This permission
-   does not transfer ownership of your contributions.
+2. **License.** You license your contributions under GPL-3.0-only, permitting
+   use, modification, and redistribution, including commercially, subject to
+   that license.
 3. **Authority and third-party material.** You confirm that you own the rights
    needed to grant this permission or have authorization from the rights holder,
    including your employer where applicable. Identify any third-party material
    and its license in your submission. These terms do not override third-party
    rights or license restrictions.
-4. **Project rights.** This agreement covers your contributions only. It does
-   not give you commercial rights to the rest of the project or grant rights to
-   anyone's trademarks.
+4. **Project rights.** Rights to the rest of the project are governed by its
+   license. These terms do not grant rights to anyone's trademarks.
 5. **Support and warranties.** You do not promise ongoing support. To the extent
    permitted by law, your contributions are provided as is, without warranties,
    apart from the confirmations you expressly make in these terms.

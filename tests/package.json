@@ -8,7 +8,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "PolyForm-Noncommercial-1.0.0",
+  "license": "GPL-3.0-only",
   "dependencies": {
     "jsdom": "^22.1.0"
   }
